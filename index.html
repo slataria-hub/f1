@@ -59,6 +59,11 @@ textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px 
 .leg span{display:inline-flex;align-items:center;gap:5px}
 .leg i{width:12px;height:3px;border-radius:1px;display:inline-block}
 .chart-hint{font-size:12px;color:var(--mu);margin:6px 0 0}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:rgba(127,127,127,.12);color:var(--mu);margin-left:6px}
+.badge.ok{background:rgba(34,160,90,.15);color:#1a9a52}.badge.warn{background:rgba(225,6,0,.1);color:var(--ac)}
+.cmp{display:grid;grid-template-columns:28px 1fr auto auto;gap:6px 10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln);font-variant-numeric:tabular-nums}
+.cmp:last-child{border:0}.cmp .delta{min-width:36px;text-align:right;font-weight:600}.cmp .delta.up{color:#1a9a52}.cmp .delta.dn{color:#d33}.cmp .act{color:var(--mu);min-width:28px;text-align:right}
+.score-box{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:8px}.score-box b{font:700 18px var(--hd)}.score-box span{color:var(--mu);font-size:13px}
 </style></head><body>
 <div id="app"></div><div id="toast"></div>
 <script>
@@ -88,6 +93,16 @@ const dTi=(d,i)=>S.gps.reduce((a,g)=>a+(tm(d,g)==i?tot(g,d.id):0),0);
 const tP=(i,g)=>S.drv.reduce((a,d)=>a+(tm(d,g)==i?tot(g,d.id):0),0);
 const tT=i=>S.gps.reduce((a,g)=>a+tP(i,g),0);
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3500)}
+function ensurePred(g){if(!g.pred)g.pred={race:[],spr:[]};if(!g.pred.race)g.pred.race=[];if(!g.pred.spr)g.pred.spr=[];return g.pred}
+function predScore(g){
+ const pred=(g.pred&&g.pred.race)||[],act=g.race||[];
+ if(!pred.length||!act.length)return null;
+ let exact=0,close=0,podium=0;
+ pred.forEach((id,i)=>{const a=act.indexOf(id);if(a<0)return;if(a===i)exact++;else if(Math.abs(a-i)<=1)close++;if(i<3&&a<3)podium++});
+ const winner=pred[0]===act[0];
+ const score=exact*5+close*2+(winner?10:0)+podium*3;
+ return{exact,close,winner,podium,score,n:pred.length}}
+function hasPred(g){return g.pred&&((g.pred.race&&g.pred.race.length)||(g.pred.spr&&g.pred.spr.length))}
 
 function tableView(){
  if(!S.gps.length)return`<div class="em"><h2>Пока нет гран-при</h2><p>Добавьте первый вручную или загрузите расписание сезона.</p><button class="pr" data-act="new">Добавить гран-при</button> <button data-act="set">Загрузить расписание</button></div>`;
@@ -168,14 +183,29 @@ function dashView(){
  ${chart}<div class="leg">${leg}</div></div>`}
 
 function gpView(){
- const g=gp(),k=V.mode,L=k=='r'?g.race:k=='s'?g.spr:g.q,modes=[['r','Гонка'],...(g.sp?[['s','Спринт']]:[]),['q','Квалификация']];
- const row=(id,i)=>{const d=drs().find(z=>z.id==id);return`<div class="li"><b>${i+1}</b><span class="dot" style="background:${dc(d,g)}"></span><span class="nm">${esc(d.n)}<div class="mu">${tn(d,g)}</div></span>${k=='q'?'':`<input class="pt" type="number" data-ov="${k+id}" value="${pts(g,k,id)}" aria-label="Очки">`}<button data-act="up" data-i="${i}" aria-label="Выше">↑</button><button data-act="rm" data-i="${i}" aria-label="Убрать">✕</button></div>`};
+ const g=gp(),k=V.mode;
+ ensurePred(g);
+ const isPred=k==='p';
+ const L=k==='r'?g.race:k==='s'?g.spr:k==='q'?g.q:g.pred.race;
+ const modes=[['r','Гонка'],...(g.sp?[['s','Спринт']]:[]),['q','Квалификация'],['p','Прогноз']];
+ const sc=predScore(g);
+ const row=(id,i)=>{const d=drs().find(z=>z.id==id);return`<div class="li"><b>${i+1}</b><span class="dot" style="background:${dc(d,g)}"></span><span class="nm">${esc(d.n)}<div class="mu">${tn(d,g)}</div></span>${k==='q'||isPred?'':`<input class="pt" type="number" data-ov="${k+id}" value="${pts(g,k,id)}" aria-label="Очки">`}<button data-act="up" data-i="${i}" aria-label="Выше">↑</button><button data-act="rm" data-i="${i}" aria-label="Убрать">✕</button></div>`};
  const rest=drs().filter(d=>!L.includes(d.id)).sort((a,b)=>(tm(b,g)>=0)-(tm(a,g)>=0));
+ let cmp='';
+ if(isPred&&g.race.length&&g.pred.race.length){
+  const act=g.race;
+  cmp=`<div class="card"><div class="mu" style="margin-bottom:6px">Сравнение прогноза с фактом</div>
+   <div class="cmp" style="font-size:12px;color:var(--mu)"><span>#</span><span>Пилот</span><span>факт</span><span>Δ</span></div>
+   ${g.pred.race.map((id,i)=>{const d=drs().find(z=>z.id==id);const a=act.indexOf(id);const delta=a<0?null:a-i;const ds=delta==null?'—':delta===0?'0':(delta>0?'+'+delta:String(delta));const cls=delta==null?'':delta===0?'up':delta>0?'dn':'up';
+    return`<div class="cmp"><b>${i+1}</b><span><span class="dot" style="background:${dc(d,g)};display:inline-block;vertical-align:middle;margin-right:6px"></span>${esc(d?d.n:id)}</span><span class="act">${a<0?'—':a+1}</span><span class="delta ${cls}">${ds}</span></div>`}).join('')}
+   ${sc?`<div class="score-box"><div><b>${sc.score}</b><br><span>очков прогноза</span></div><div><b>${sc.exact}</b><br><span>точных мест</span></div><div><b>${sc.close}</b><br><span>±1 место</span></div><div><b>${sc.winner?'✓':'—'}</b><br><span>победитель</span></div><div><b>${sc.podium}/3</b><br><span>подиум</span></div></div>
+   <p class="mu" style="margin:8px 0 0">Начисление: точное место ×5, соседнее ×2, победитель +10, пилот в топ-3 угадан ×3</p>`:''}</div>`}
  return`<header style="max-width:760px;margin:0 auto"><button data-act="back">‹ Назад</button><button data-act="load">Загрузить из базы F1</button></header><main style="max-width:760px;margin:0 auto">
  <div class="card"><div class="row"><input type="text" data-f="n" value="${esc(g.n)}" aria-label="Название"><input class="n" style="width:84px" type="number" data-f="r" value="${g.r}" aria-label="Номер этапа"><input class="n" style="width:72px" type="number" data-f="y" value="${gy(g)}" aria-label="Год"></div>
  <div class="row"><label style="flex:1"><input type="checkbox" data-f="sp" ${g.sp?'checked':''}> Спринт-уикенд</label><button class="dg n" data-act="del">${V.del?'Точно удалить?':'Удалить'}</button></div></div>
  <div class="seg">${modes.map(m=>`<button class="${m[0]==k?'on':''}" data-act="mode" data-v="${m[0]}">${m[1]}</button>`).join('')}</div>
- <div class="card"><div class="mu">${k=='q'?'Порядок в квалификации':'Порядок финиша'}</div>${L.length?L.map(row).join(''):'<p class="mu">Нажимайте на пилотов ниже в порядке их места.</p>'}</div>
+ ${cmp}
+ <div class="card"><div class="mu">${isPred?'Ваш прогноз финиша гонки':k==='q'?'Порядок в квалификации':'Порядок финиша'}${isPred&&!g.race.length?' · введите до гонки':''}</div>${L.length?L.map(row).join(''):'<p class="mu">Нажимайте на пилотов ниже в порядке их места.</p>'}</div>
  ${rest.length?`<div class="card"><div class="mu" style="margin-bottom:8px">Нажмите, чтобы добавить на следующее место</div><div class="chips">${rest.map(d=>`<button data-act="add" data-id="${d.id}" style="opacity:${tm(d,g)<0?.5:1}"><span class="dot" style="background:${dc(d,g)}"></span>${esc(d.n)}</button>`).join('')}</div></div>`:''}</main>`}
 
 function gpsView(){
@@ -185,7 +215,8 @@ function gpsView(){
   if(f)B.sort((a,b)=>b.p-a.p);
   const dr=d=>{const q=g.q.indexOf(d.id)+1,r=g.race.indexOf(d.id)+1,s=g.spr.indexOf(d.id)+1,x=[q?'квал. '+q:'',r?'гонка '+r:'',s?'спринт '+s:''].filter(Boolean).map(z=>`<i>${z}</i>`).join('');return`<div class="dr"><span>${esc(d.n)}</span><span class="mu">${x}</span><b>${tot(g,d.id)}</b></div>`};
   const yr=gy(g);const sub=`этап ${g.r}${yr!==S.year?' · '+yr:''}${g.sp?', спринт':''}`;
-  return`<div class="card gc" data-act="open" data-id="${g.id}"><div class="gh"><b>${esc(g.n)}</b><span class="mu">${sub}</span></div>${f?B.map(b=>`<div class="tb" style="--c:${b.t.c}"><div class="tn"><span>${esc(b.t.n)}</span><span class="mu">за этап</span><b>${b.p}</b><span class="mu">всего ${S.gps.reduce((a,x)=>a+(gkey(x)<=gkey(g)?tP(b.i,x):0),0)}</span></div>${b.m.map(dr).join('')}</div>`).join(''):'<p class="mu" style="margin:0">Результатов пока нет. Нажмите, чтобы ввести.</p>'}</div>`}).join('')}
+  const sc=predScore(g);const predBadge=sc?`<span class="badge ok">прогноз ${sc.score}</span>`:hasPred(g)?`<span class="badge">прогноз</span>`:'';
+  return`<div class="card gc" data-act="open" data-id="${g.id}"><div class="gh"><b>${esc(g.n)}${predBadge}</b><span class="mu">${sub}</span></div>${f?B.map(b=>`<div class="tb" style="--c:${b.t.c}"><div class="tn"><span>${esc(b.t.n)}</span><span class="mu">за этап</span><b>${b.p}</b><span class="mu">всего ${S.gps.reduce((a,x)=>a+(gkey(x)<=gkey(g)?tP(b.i,x):0),0)}</span></div>${b.m.map(dr).join('')}</div>`).join(''):`<p class="mu" style="margin:0">${hasPred(g)?'Прогноз сохранён. ':' '}Результатов пока нет. Нажмите, чтобы ввести.</p>`}</div>`}).join('')}
 
 function mainView(){
  const tabs=[['gps','Этапы'],['table','Таблица'],['stand','Зачёт'],['mates','Напарники'],['dash','Дашборд']];
@@ -223,13 +254,13 @@ const API='https://api.jolpi.ca/ergast/f1/';
 async function jget(u){const r=await fetch(u);if(!r.ok)throw new Error(r.status);return(await r.json()).MRData.RaceTable}
 async function sched(){
  try{const T=await jget(API+S.year+'.json');let n=0;
-  T.Races.forEach(r=>{if(S.gps.some(g=>g.r==+r.round&&gy(g)==S.year))return;S.gps.push({id:'g'+r.round+Date.now(),n:r.raceName,r:+r.round,y:S.year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{}});n++});
+  T.Races.forEach(r=>{if(S.gps.some(g=>g.r==+r.round&&gy(g)==S.year))return;S.gps.push({id:'g'+r.round+Date.now(),n:r.raceName,r:+r.round,y:S.year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]}});n++});
   S.gps=sortGps(S.gps);save();V.set=false;render();toast('Добавлено гран-при: '+n)}
  catch(e){toast('Не удалось связаться с базой F1. В предпросмотре это заблокировано; на GitHub Pages должно работать.')}}
 let MS=[];
 async function syncAll(){
  try{toast('Загружаю расписание…');const T=await jget(API+S.year+'.json');
-  T.Races.forEach(r=>{let g=S.gps.find(x=>x.r==+r.round&&gy(x)==S.year);if(!g){g={id:'g'+r.round+Date.now(),n:r.raceName,r:+r.round,y:S.year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{}};S.gps.push(g)}if(!g.n||g.n=='Новый гран-при')g.n=r.raceName;g.d=r.date;g.y=S.year;if(r.Sprint)g.sp=true});
+  T.Races.forEach(r=>{let g=S.gps.find(x=>x.r==+r.round&&gy(x)==S.year);if(!g){g={id:'g'+r.round+Date.now(),n:r.raceName,r:+r.round,y:S.year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]}};S.gps.push(g)}if(!g.n||g.n=='Новый гран-при')g.n=r.raceName;g.d=r.date;g.y=S.year;if(r.Sprint)g.sp=true});
   S.gps=sortGps(S.gps);save();render()}
  catch(e){toast('Не удалось загрузить расписание. Проверьте сезон и подключение.');return}
  const td=new Date().toISOString().slice(0,10),todo=S.gps.filter(g=>gy(g)==S.year&&g.d&&g.d<=td&&(!fl(g)||!g.at));let n=0,ok=0,stop=false;MS=[];
@@ -241,7 +272,7 @@ async function loadHist(){
  for(let y=from;y<=cur;y++){
   toast('Год '+y+': расписание…');
   try{const T=await jget(API+y+'.json');
-   T.Races.forEach(r=>{let g=S.gps.find(x=>x.r==+r.round&&gy(x)==y);if(!g){g={id:'g'+y+'r'+r.round+Date.now(),n:r.raceName,r:+r.round,y:y,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{}};S.gps.push(g)}if(!g.n||g.n=='Новый гран-при')g.n=r.raceName;g.d=r.date;g.y=y;if(r.Sprint)g.sp=true});
+   T.Races.forEach(r=>{let g=S.gps.find(x=>x.r==+r.round&&gy(x)==y);if(!g){g={id:'g'+y+'r'+r.round+Date.now(),n:r.raceName,r:+r.round,y:y,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]}};S.gps.push(g)}if(!g.n||g.n=='Новый гран-при')g.n=r.raceName;g.d=r.date;g.y=y;if(r.Sprint)g.sp=true});
    S.gps=sortGps(S.gps);save()}
   catch(e){toast('Не удалось загрузить '+y);continue}
   const td=new Date().toISOString().slice(0,10);
@@ -262,13 +293,13 @@ async function loadGp(g){
  catch(e){toast('Не удалось загрузить. Проверьте номер этапа и сезон; в предпросмотре сеть заблокирована.');return -1}}
 
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const d=b.dataset,a=d.act,g=V.gp&&gp(),i=+d.i;
- const L=g&&(V.mode=='r'?g.race:V.mode=='s'?g.spr:g.q);if(a!='del')V.del=false;if(a!='delp')V.dd=null;
+ const L=g&&(V.mode=='r'?g.race:V.mode=='s'?g.spr:V.mode=='q'?g.q:(ensurePred(g).race));if(a!='del')V.del=false;if(a!='delp')V.dd=null;
  if(a=='tab')V.tab=d.v;else if(a=='open'){V.gp=d.id;V.mode='r'}else if(a=='back')V.gp=null;else if(a=='mode')V.mode=d.v;
  else if(a=='dashm'){V.dashMode=d.v;V.cz={s:1,x:0,y:0};render();return}
  else if(a=='add')L.push(d.id);
  else if(a=='rm'){delete g.ov[V.mode+L[i]];L.splice(i,1)}
  else if(a=='up'){if(i>0)[L[i-1],L[i]]=[L[i],L[i-1]]}
- else if(a=='new'){const n={id:'g'+Date.now(),n:'Новый гран-при',r:S.gps.filter(x=>gy(x)==S.year).length+1,y:S.year,sp:false,race:[],spr:[],q:[],ov:{}};S.gps.push(n);V.gp=n.id;V.mode='r'}
+ else if(a=='new'){const n={id:'g'+Date.now(),n:'Новый гран-при',r:S.gps.filter(x=>gy(x)==S.year).length+1,y:S.year,sp:false,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]}};S.gps.push(n);V.gp=n.id;V.mode='r'}
  else if(a=='del'){if(V.del){S.gps=S.gps.filter(x=>x!==g);V.gp=null;V.del=false}else V.del=true}
  else if(a=='addp'){const v=S.drv.find(z=>z.id==d.id),l=v.s[v.s.length-1],f=Math.max(0,...S.gps.filter(fl).map(g=>g.r))+1;if(l.u==null&&f-1>=l.f)l.u=f-1;v.s.push({t:l.t,f,u:null})}
  else if(a=='newd'){const f=Math.max(0,...S.gps.filter(fl).map(g=>g.r))+1;S.drv.push({id:'d'+Date.now(),n:'Новый пилот',s:[{t:0,f,u:null}]})}
