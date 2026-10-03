@@ -57,19 +57,18 @@ textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px 
 .tb{border-left:4px solid var(--c);background:rgba(127,127,127,.06);border-radius:8px;padding:7px 10px;margin-top:8px}
 .tn{display:flex;gap:10px;align-items:baseline;font:700 15px var(--hd)}.tn b{font-size:18px}.tn span:first-child{flex:1}
 .dr{display:flex;align-items:baseline;gap:8px;padding:3px 0}.dr>span:first-child{flex:1}.dr b{min-width:26px;text-align:right}.dr .mu i{font-style:normal;margin-left:8px}
-.dash-card{background:#0d1117;border:1px solid #21262d;border-radius:14px;padding:16px 14px 12px;margin-bottom:12px;color:#e6edf3}
-.dash-card .seg button{background:#161b22;border-color:#30363d;color:#8b949e}.dash-card .seg .on{background:#e6edf3;color:#0d1117;border-color:#e6edf3}
-.dash-title{font:700 18px var(--hd);margin:0 0 12px;color:#e6edf3}
-.chart-box{position:relative;width:100%;height:min(58vh,520px);min-height:340px;user-select:none}
+.dash-card{background:#0b0f14;border:1px solid #1c2330;border-radius:16px;padding:18px 16px 14px;margin-bottom:12px;color:#e8edf5}
+.dash-card .seg{max-width:220px}.dash-card .seg button{background:#141a22;border-color:#2a3340;color:#8b95a5}.dash-card .seg .on{background:#e8edf5;color:#0b0f14;border-color:#e8edf5}
+.dash-title{font:700 20px var(--hd);margin:0 0 14px;color:#f0f4fa;letter-spacing:.2px}
+.chart-box{position:relative;width:100%;height:min(62vh,560px);min-height:360px;user-select:none}
 .chart-box svg{display:block;width:100%;height:100%}
-.stand-pop{position:absolute;top:8px;right:8px;width:200px;max-height:calc(100% - 16px);overflow:auto;background:#161b22ee;border:1px solid #30363d;border-radius:10px;padding:10px 12px;font-size:12px;backdrop-filter:blur(8px);z-index:2}
-.stand-pop .hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;font-weight:700;font-size:13px}
-.stand-pop .hd span{color:#8b949e;font-weight:500;font-size:11px}
-.stand-pop .row{display:flex;align-items:center;gap:6px;padding:2px 0;font-variant-numeric:tabular-nums}
-.stand-pop .row b{min-width:16px;color:#8b949e;font-weight:500}
-.stand-pop .row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.stand-pop .row .pt{font-weight:600;min-width:28px;text-align:right}
-.chart-hint{font-size:12px;color:#8b949e;margin:8px 0 0}
+.stand-pop{position:absolute;top:12px;width:196px;max-height:calc(100% - 24px);overflow:auto;background:rgba(15,20,28,.94);border:1px solid #2a3340;border-radius:12px;padding:12px 12px 10px;font-size:12.5px;backdrop-filter:blur(10px);z-index:2;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+.stand-pop .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-weight:700;font-size:13.5px;color:#f0f4fa}
+.stand-pop .hd .rn{color:#8b95a5;font-weight:500;font-size:11.5px}
+.stand-pop .row{display:flex;align-items:center;gap:7px;padding:2.5px 0;font-variant-numeric:tabular-nums}
+.stand-pop .row b{min-width:18px;color:#6b7585;font-weight:500;font-size:11.5px}
+.stand-pop .row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.stand-pop .row .pt{font-weight:600;min-width:30px;text-align:right;color:#e8edf5}
 .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:rgba(127,127,127,.12);color:var(--mu);margin-left:6px}
 .badge.ok{background:rgba(34,160,90,.15);color:#1a9a52}.badge.warn{background:rgba(225,6,0,.1);color:var(--ac)}
 .cmp{display:grid;grid-template-columns:28px 1fr auto auto;gap:6px 10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln);font-variant-numeric:tabular-nums}
@@ -192,7 +191,7 @@ function tableView(){
   h+='</tr>'});
  h+='</tbody><tfoot><tr><th class="s1">Всего очков</th>';
  AT.forEach(({i})=>{(cols[i]||[]).forEach(d=>h+=`<td>${dTi(d,i)}</td>`);h+=`<td class="tt">${tT(i)}</td>`});
- return h+'</tr></tfoot></table></div><p class="mu" style="padding:0 4px">Сезон ${S.year}: названия команд соответствуют этому году. В колонках — пилоты, выступавшие за команду в сезоне.</p>'}
+ return h+'</tr></tfoot></table></div>'}
 
 function standView(){
  const Y=yearGps();
@@ -217,48 +216,59 @@ const FLAG={australian:'🇦🇺',china:'🇨🇳',chinese:'🇨🇳',japan:'�
 function gpFlag(g){const n=norm(g.n||'').replace(/grand prix|gp/g,'').trim();for(const[k,f]of Object.entries(FLAG))if(n.includes(k))return f;return '🏁'}
 function gpShort(g){const n=(g.n||'').replace(/\s*Grand Prix\s*/i,'').trim();return n||('R'+g.r)}
 
+function surname(n){
+ const p=String(n).trim().split(/\s+/);
+ if(p.length>=2&&/^(de|van|von|di|da|le|la|du)$/i.test(p[p.length-2]))return p.slice(-2).join(' ');
+ return p[p.length-1]||n;
+}
 function pointsChart(done,mode){
  const n=done.length;if(!n)return'<p class="mu">Нет данных</p>';
  const isDrv=mode==='d';
- // cumulative points series
  const series=[];
  if(isDrv){
-  S.drv.forEach(d=>{let c=0;const pts=[];done.forEach(g=>{c+=tot(g,d.id);pts.push(c)});if(pts.some(p=>p>0))series.push({id:d.id,n:d.n,short:sn(d.n),c:S.teams[last(d)].c,pts})});
+  S.drv.forEach(d=>{
+   let c=0;const pts=[];
+   // цвет — команда на последнем этапе сезона, где пилот участвовал
+   let col='#8b95a5';
+   for(let i=done.length-1;i>=0;i--){const t=tm(d,done[i]);if(t>=0&&part(done[i],d.id)){col=S.teams[t]?S.teams[t].c:col;break}}
+   done.forEach(g=>{c+=tot(g,d.id);pts.push(c)});
+   if(pts.some(p=>p>0)||done.some(g=>part(g,d.id)))series.push({id:d.id,n:d.n,label:surname(d.n),c:col,pts});
+  });
  }else{
-  activeTeams().forEach(({i,n,c})=>{let acc=0;const pts=[];done.forEach(g=>{acc+=tP(i,g);pts.push(acc)});if(pts.some(p=>p>0))series.push({id:'t'+i,n,short:n,c,pts})});
+  activeTeams().forEach(({i,n,c})=>{let acc=0;const pts=[];done.forEach(g=>{acc+=tP(i,g);pts.push(acc)});if(pts.some(p=>p>0))series.push({id:'t'+i,n,label:n,c,pts})});
  }
  series.sort((a,b)=>b.pts[n-1]-a.pts[n-1]);
  const maxY=Math.max(...series.map(s=>s.pts[n-1]),10);
- const stepY=maxY<=50?10:maxY<=150?25:maxY<=300?50:100;
+ const stepY=maxY<=50?10:maxY<=120?20:maxY<=250?25:maxY<=400?50:100;
  const yMax=Math.ceil(maxY/stepY)*stepY||stepY;
- const W=Math.max(720,n*42+90),H=400,padL=44,padR=18,padT=18,padB=40;
+ const W=Math.max(800,n*38+100),H=440,padL=48,padR=20,padT=16,padB=44;
  const x=i=>padL+(n===1?0:(W-padL-padR)*i/(n-1));
  const y=v=>padT+(H-padT-padB)*(1-v/yMax);
  let grid='';
- for(let v=0;v<=yMax;v+=stepY)grid+=`<line x1="${padL}" y1="${y(v)}" x2="${W-padR}" y2="${y(v)}" stroke="#21262d" stroke-width="1"/><text x="${padL-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="#8b949e" font-family="system-ui">${v}</text>`;
+ for(let v=0;v<=yMax;v+=stepY)grid+=`<line x1="${padL}" y1="${y(v)}" x2="${W-padR}" y2="${y(v)}" stroke="#1c2430" stroke-width="1"/><text x="${padL-10}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="#6b7585" font-family="system-ui,sans-serif">${v}</text>`;
  let paths='',dots='';
- series.forEach(s=>{let d='';s.pts.forEach((p,i)=>{const px=x(i),py=y(p);d+=(i?' L':'M')+px+','+py;dots+=`<circle cx="${px}" cy="${py}" r="3" fill="${s.c}" class="dc" data-i="${i}" data-id="${s.id}"/>`});
-  paths+=`<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity=".92"/>`});
- let flags='';done.forEach((g,i)=>{flags+=`<text x="${x(i)}" y="${H-12}" text-anchor="middle" font-size="14">${gpFlag(g)}</text>`});
- const idx=V.dashIdx!=null?V.dashIdx:n-1;
+ series.forEach(s=>{let d='';s.pts.forEach((p,i)=>{const px=x(i),py=y(p);d+=(i?' L':'M')+px+','+py;dots+=`<circle cx="${px}" cy="${py}" r="2.6" fill="${s.c}"/>`});
+  paths+=`<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`});
+ let flags='';done.forEach((g,i)=>{flags+=`<text x="${x(i)}" y="${H-14}" text-anchor="middle" font-size="15">${gpFlag(g)}</text>`});
+ const idx=V.dashIdx!=null?Math.min(V.dashIdx,n-1):n-1;
  const cx=x(idx);
- const cursor=`<line x1="${cx}" y1="${padT}" x2="${cx}" y2="${H-padB}" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4 3"/><circle cx="${cx}" cy="${padT}" r="0"/>`;
- // hit areas for selection
- let hits='';done.forEach((g,i)=>{const hx=x(i),hw=n>1?(W-padL-padR)/(n-1)/2:40;hits+=`<rect x="${hx-hw}" y="${padT}" width="${hw*2}" height="${H-padT-padB}" fill="transparent" data-act="dashi" data-i="${i}" style="cursor:pointer"/>`});
- // standings at idx
- const stand=series.map(s=>({n:s.short||s.n,c:s.c,p:s.pts[idx]})).sort((a,b)=>b.p-a.p);
+ const cursor=`<line x1="${cx}" y1="${padT}" x2="${cx}" y2="${H-padB}" stroke="#3d4654" stroke-width="1.25"/>`;
+ let hits='';done.forEach((g,i)=>{const hx=x(i),hw=n>1?(W-padL-padR)/(n-1)/2:48;hits+=`<rect x="${hx-hw}" y="${padT}" width="${hw*2}" height="${H-padT-padB}" fill="transparent" data-act="dashi" data-i="${i}" style="cursor:pointer"/>`});
+ const stand=series.map(s=>({n:s.label,c:s.c,p:s.pts[idx]})).sort((a,b)=>b.p-a.p);
  const gAt=done[idx];
- const pop=`<div class="stand-pop"><div class="hd"><span>${gpFlag(gAt)} ${esc(gpShort(gAt))}</span><span>R${gAt.r}</span></div>${stand.map((s,i)=>`<div class="row"><b>${i+1}</b><span class="nm" style="color:${s.c}">${esc(s.n)}</span><span class="pt">${s.p}</span></div>`).join('')}</div>`;
- return`<div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${paths}${dots}${flags}${cursor}${hits}</svg>${pop}</div>
- <p class="chart-hint">Нажмите на этап (флаг), чтобы увидеть таблицу на этот момент · колесо — масштаб</p>`}
+ // панель слева, если выбран правый край графика
+ const popSide=idx>n*0.55?'left':'right';
+ const popStyle=popSide==='left'?'left:12px;right:auto':'right:12px;left:auto';
+ const pop=`<div class="stand-pop" style="${popStyle}"><div class="hd"><span>${gpFlag(gAt)} ${esc(gpShort(gAt))}</span><span class="rn">R${gAt.r}</span></div>${stand.map((s,i)=>`<div class="row"><b>${i+1}</b><span class="nm" style="color:${s.c}">${esc(s.n)}</span><span class="pt">${s.p}</span></div>`).join('')}</div>`;
+ return`<div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${paths}${dots}${flags}${cursor}${hits}</svg>${pop}</div>`}
 
 function dashView(){
  const done=yearGps().filter(fl);
- if(done.length<1)return`<div class="em"><h2>Нет результатов за ${S.year}</h2><p>Загрузите или введите результаты этапов сезона — график покажет эволюцию очков.</p></div>`;
+ if(done.length<1)return`<div class="em"><h2>Нет результатов за ${S.year}</h2><p>Загрузите или введите результаты этапов сезона.</p></div>`;
  if(V.dashIdx==null||V.dashIdx>=done.length)V.dashIdx=done.length-1;
  const mode=V.dashMode||'d';
- const title=mode==='d'?`Эволюция очков пилотов · ${S.year}`:`Эволюция очков команд · ${S.year}`;
- return`<div class="dash-card"><div class="seg" style="margin-bottom:10px"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>
+ const title=mode==='d'?'Эволюция очков пилотов':'Эволюция очков команд';
+ return`<div class="dash-card"><div class="seg" style="margin-bottom:12px"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>
  <div class="dash-title">${title}</div>
  ${pointsChart(done,mode)}</div>`}
 
