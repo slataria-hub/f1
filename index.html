@@ -52,13 +52,19 @@ textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px 
 .tb{border-left:4px solid var(--c);background:rgba(127,127,127,.06);border-radius:8px;padding:7px 10px;margin-top:8px}
 .tn{display:flex;gap:10px;align-items:baseline;font:700 15px var(--hd)}.tn b{font-size:18px}.tn span:first-child{flex:1}
 .dr{display:flex;align-items:baseline;gap:8px;padding:3px 0}.dr>span:first-child{flex:1}.dr b{min-width:26px;text-align:right}.dr .mu i{font-style:normal;margin-left:8px}
-.chart-wrap{position:relative;width:100%;height:min(62vh,560px);min-height:320px;overflow:hidden;background:var(--bg);border:1px solid var(--ln);border-radius:12px;touch-action:none;cursor:grab}
-.chart-wrap:active{cursor:grabbing}
-.chart-wrap svg{display:block;width:100%;height:100%}
-.leg{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font-size:12px}
-.leg span{display:inline-flex;align-items:center;gap:5px}
-.leg i{width:12px;height:3px;border-radius:1px;display:inline-block}
-.chart-hint{font-size:12px;color:var(--mu);margin:6px 0 0}
+.dash-card{background:#0d1117;border:1px solid #21262d;border-radius:14px;padding:16px 14px 12px;margin-bottom:12px;color:#e6edf3}
+.dash-card .seg button{background:#161b22;border-color:#30363d;color:#8b949e}.dash-card .seg .on{background:#e6edf3;color:#0d1117;border-color:#e6edf3}
+.dash-title{font:700 18px var(--hd);margin:0 0 12px;color:#e6edf3}
+.chart-box{position:relative;width:100%;height:min(58vh,520px);min-height:340px;user-select:none}
+.chart-box svg{display:block;width:100%;height:100%}
+.stand-pop{position:absolute;top:8px;right:8px;width:200px;max-height:calc(100% - 16px);overflow:auto;background:#161b22ee;border:1px solid #30363d;border-radius:10px;padding:10px 12px;font-size:12px;backdrop-filter:blur(8px);z-index:2}
+.stand-pop .hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;font-weight:700;font-size:13px}
+.stand-pop .hd span{color:#8b949e;font-weight:500;font-size:11px}
+.stand-pop .row{display:flex;align-items:center;gap:6px;padding:2px 0;font-variant-numeric:tabular-nums}
+.stand-pop .row b{min-width:16px;color:#8b949e;font-weight:500}
+.stand-pop .row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stand-pop .row .pt{font-weight:600;min-width:28px;text-align:right}
+.chart-hint{font-size:12px;color:#8b949e;margin:8px 0 0}
 .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:rgba(127,127,127,.12);color:var(--mu);margin-left:6px}
 .badge.ok{background:rgba(34,160,90,.15);color:#1a9a52}.badge.warn{background:rgba(225,6,0,.1);color:var(--ac)}
 .cmp{display:grid;grid-template-columns:28px 1fr auto auto;gap:6px 10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln);font-variant-numeric:tabular-nums}
@@ -72,7 +78,7 @@ const T0=[["McLaren","#ff8000","Lando Norris","Oscar Piastri"],["Ferrari","#e800
 function init(){let n=0;return{year:2026,gps:[],teams:T0.map(t=>({n:t[0],c:t[1]})),drv:T0.flatMap((t,i)=>[t[2],t[3]].map(x=>({id:'d'+n++,n:x,s:[{t:i,f:1,u:null}]})))}}
 function mig(o){if(!o.drv){o.drv=o.teams.flatMap((t,i)=>t.d.map(d=>({id:d.id,n:d.n,s:[{t:i,f:1,u:null}]})));o.teams.forEach(t=>delete t.d)}if(o.gps)o.gps.forEach(g=>{if(g.y==null)g.y=o.year||2025});return o}
 let S;try{S=JSON.parse(localStorage.getItem('f1app'))}catch(e){}S=S&&S.teams?mig(S):init();
-const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'t',cz:{s:1,x:0,y:0}};
+const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'d',dashIdx:null};
 const save=()=>{try{localStorage.setItem('f1app',JSON.stringify(S))}catch(e){}};
 const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const drs=()=>S.drv,gp=()=>S.gps.find(g=>g.id==V.gp);
@@ -135,52 +141,54 @@ function matesView(){const P={},K=(i,x,y)=>i+x.id+y.id;
  return Object.values(P).sort((p,q)=>p.i-q.i).map(p=>{const t=S.teams[p.i],s=p.a+p.b||1;
   return`<div class="card"><div class="sc"><span style="color:var(--tx)">${esc(p.x.n)}</span>${p.a} : ${p.b}<span style="color:var(--tx)">${esc(p.y.n)}</span></div><div class="bar"><i style="width:${p.a/s*100}%;background:${t.c}"></i><i style="width:${p.b/s*100}%;background:${t.c};opacity:.35"></i></div><div class="mu" style="margin-top:6px">${esc(t.n)}: сравнений квалификации — ${p.a+p.b}</div></div>`}).join('')}
 
-function lineChart(series,labels,opts={}){
- const n=labels.length;if(!n)return'<p class="mu">Нет данных для графика</p>';
- const W=Math.max(640,labels.length*36+80),H=420,padL=36,padR=16,padT=20,padB=36;
- const maxP=opts.maxPos||Math.max(...series.flatMap(s=>s.pos.filter(p=>p!=null)),1);
+const FLAG={australian:'🇦🇺',china:'🇨🇳',chinese:'🇨🇳',japan:'🇯🇵',japanese:'🇯🇵',bahrain:'🇧🇭',saudi:'🇸🇦','saudi arabian':'🇸🇦',miami:'🇺🇸',usa:'🇺🇸','united states':'🇺🇸',emilia:'🇮🇹',emiliaromagna:'🇮🇹',monaco:'🇲🇨',spanish:'🇪🇸',spain:'🇪🇸',canadian:'🇨🇦',canada:'🇨🇦',austrian:'🇦🇹',austria:'🇦🇹',british:'🇬🇧',britain:'🇬🇧',greatbritain:'🇬🇧',belgian:'🇧🇪',belgium:'🇧🇪',hungarian:'🇭🇺',hungary:'🇭🇺',dutch:'🇳🇱',netherlands:'🇳🇱',italian:'🇮🇹',italy:'🇮🇹',azerbaijan:'🇦🇿',singapore:'🇸🇬',mexican:'🇲🇽',mexico:'🇲🇽','sao paulo':'🇧🇷',brazilian:'🇧🇷',brazil:'🇧🇷',lasvegas:'🇺🇸','las vegas':'🇺🇸',qatar:'🇶🇦',abu:'🇦🇪',abudhabi:'🇦🇪','abu dhabi':'🇦🇪',portuguese:'🇵🇹',portugal:'🇵🇹',french:'🇫🇷',france:'🇫🇷',german:'🇩🇪',germany:'🇩🇪',russian:'🇷🇺',russia:'🇷🇺',turkish:'🇹🇷',turkey:'🇹🇷',styrian:'🇦🇹',styria:'🇦🇹',tuscany:'🇮🇹',eifel:'🇩🇪',sakhir:'🇧🇭','70th':'🇬🇧',anniversary:'🇬🇧'};
+function gpFlag(g){const n=norm(g.n||'').replace(/grand prix|gp/g,'').trim();for(const[k,f]of Object.entries(FLAG))if(n.includes(k))return f;return '🏁'}
+function gpShort(g){const n=(g.n||'').replace(/\s*Grand Prix\s*/i,'').trim();return n||('R'+g.r)}
+
+function pointsChart(done,mode){
+ const n=done.length;if(!n)return'<p class="mu">Нет данных</p>';
+ const isDrv=mode==='d';
+ // cumulative points series
+ const series=[];
+ if(isDrv){
+  S.drv.forEach(d=>{let c=0;const pts=[];done.forEach(g=>{c+=tot(g,d.id);pts.push(c)});if(pts.some(p=>p>0))series.push({id:d.id,n:d.n,short:sn(d.n),c:S.teams[last(d)].c,pts})});
+ }else{
+  S.teams.forEach((t,i)=>{let c=0;const pts=[];done.forEach(g=>{c+=tP(i,g);pts.push(c)});if(pts.some(p=>p>0))series.push({id:'t'+i,n:t.n,short:t.n,c:t.c,pts})});
+ }
+ series.sort((a,b)=>b.pts[n-1]-a.pts[n-1]);
+ const maxY=Math.max(...series.map(s=>s.pts[n-1]),10);
+ const stepY=maxY<=50?10:maxY<=150?25:maxY<=300?50:100;
+ const yMax=Math.ceil(maxY/stepY)*stepY||stepY;
+ const W=Math.max(720,n*42+90),H=400,padL=44,padR=18,padT=18,padB=40;
  const x=i=>padL+(n===1?0:(W-padL-padR)*i/(n-1));
- const y=p=>padT+(H-padT-padB)*(p-1)/Math.max(maxP-1,1);
+ const y=v=>padT+(H-padT-padB)*(1-v/yMax);
+ let grid='';
+ for(let v=0;v<=yMax;v+=stepY)grid+=`<line x1="${padL}" y1="${y(v)}" x2="${W-padR}" y2="${y(v)}" stroke="#21262d" stroke-width="1"/><text x="${padL-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="#8b949e" font-family="system-ui">${v}</text>`;
  let paths='',dots='';
- series.forEach(s=>{const pts=[];s.pos.forEach((p,i)=>{if(p!=null)pts.push([x(i),y(p)])});
-  if(pts.length<2){if(pts.length===1)dots+=`<circle cx="${pts[0][0]}" cy="${pts[0][1]}" r="4" fill="${s.c}"/>`;return}
-  let d=`M${pts[0][0]},${pts[0][1]}`;for(let i=1;i<pts.length;i++)d+=` L${pts[i][0]},${pts[i][1]}`;
-  paths+=`<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
-  pts.forEach(([px,py])=>{dots+=`<circle cx="${px}" cy="${py}" r="3.2" fill="${s.c}"/>`})});
- const yTicks=[];for(let p=1;p<=maxP;p+=Math.max(1,Math.floor(maxP/8)))yTicks.push(p);if(!yTicks.includes(maxP))yTicks.push(maxP);
- let grid=yTicks.map(p=>`<line x1="${padL}" y1="${y(p)}" x2="${W-padR}" y2="${y(p)}" stroke="var(--ln)" stroke-width="1"/><text x="${padL-8}" y="${y(p)+4}" text-anchor="end" font-size="12" fill="var(--mu)">${p}</text>`).join('');
- const step=Math.max(1,Math.floor(n/12));
- let xlbl='';labels.forEach((lb,i)=>{if(i%step===0||i===n-1)xlbl+=`<text x="${x(i)}" y="${H-10}" text-anchor="middle" font-size="11" fill="var(--mu)">${esc(lb)}</text>`});
- const cz=V.cz||{s:1,x:0,y:0};
- return`<div class="chart-wrap" id="chartWrap"><svg id="chartSvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img"><g id="chartG" transform="translate(${cz.x},${cz.y}) scale(${cz.s})">${grid}${paths}${dots}${xlbl}</g></svg></div>
- <p class="chart-hint">Колесо мыши — масштаб · перетаскивание — сдвиг · двойной клик — сброс</p>`}
+ series.forEach(s=>{let d='';s.pts.forEach((p,i)=>{const px=x(i),py=y(p);d+=(i?' L':'M')+px+','+py;dots+=`<circle cx="${px}" cy="${py}" r="3" fill="${s.c}" class="dc" data-i="${i}" data-id="${s.id}"/>`});
+  paths+=`<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity=".92"/>`});
+ let flags='';done.forEach((g,i)=>{flags+=`<text x="${x(i)}" y="${H-12}" text-anchor="middle" font-size="14">${gpFlag(g)}</text>`});
+ const idx=V.dashIdx!=null?V.dashIdx:n-1;
+ const cx=x(idx);
+ const cursor=`<line x1="${cx}" y1="${padT}" x2="${cx}" y2="${H-padB}" stroke="#484f58" stroke-width="1.5" stroke-dasharray="4 3"/><circle cx="${cx}" cy="${padT}" r="0"/>`;
+ // hit areas for selection
+ let hits='';done.forEach((g,i)=>{const hx=x(i),hw=n>1?(W-padL-padR)/(n-1)/2:40;hits+=`<rect x="${hx-hw}" y="${padT}" width="${hw*2}" height="${H-padT-padB}" fill="transparent" data-act="dashi" data-i="${i}" style="cursor:pointer"/>`});
+ // standings at idx
+ const stand=series.map(s=>({n:s.short||s.n,c:s.c,p:s.pts[idx]})).sort((a,b)=>b.p-a.p);
+ const gAt=done[idx];
+ const pop=`<div class="stand-pop"><div class="hd"><span>${gpFlag(gAt)} ${esc(gpShort(gAt))}</span><span>R${gAt.r}</span></div>${stand.map((s,i)=>`<div class="row"><b>${i+1}</b><span class="nm" style="color:${s.c}">${esc(s.n)}</span><span class="pt">${s.p}</span></div>`).join('')}</div>`;
+ return`<div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${paths}${dots}${flags}${cursor}${hits}</svg>${pop}</div>
+ <p class="chart-hint">Нажмите на этап (флаг), чтобы увидеть таблицу на этот момент · колесо — масштаб</p>`}
 
 function dashView(){
  const done=sortGps(S.gps.filter(fl));
- if(done.length<1)return`<div class="em"><h2>Нет результатов</h2><p>Загрузите или введите результаты этапов — график покажет динамику мест.</p></div>`;
- const labels=done.map(g=>{const y=gy(g);return y!==S.year?`${String(y).slice(2)}.${g.r}`:`${g.r}`});
- const teamPts=S.teams.map(()=>0),drvPts={};S.drv.forEach(d=>drvPts[d.id]=0);
- const teamPosHist=S.teams.map(()=>[]),drvPosHist={};S.drv.forEach(d=>drvPosHist[d.id]=[]);
- done.forEach(g=>{
-  S.teams.forEach((t,i)=>teamPts[i]+=tP(i,g));
-  S.drv.forEach(d=>drvPts[d.id]+=tot(g,d.id));
-  const tRank=[...teamPts.map((p,i)=>({i,p}))].sort((a,b)=>b.p-a.p||a.i-b.i);
-  const dRank=S.drv.map(d=>({id:d.id,p:drvPts[d.id]})).sort((a,b)=>b.p-a.p);
-  const tMap={};tRank.forEach((x,pos)=>tMap[x.i]=pos+1);
-  const dMap={};dRank.forEach((x,pos)=>dMap[x.id]=pos+1);
-  S.teams.forEach((_,i)=>teamPosHist[i].push(tMap[i]));
-  S.drv.forEach(d=>drvPosHist[d.id].push(dMap[d.id]));
- });
- const teamSeries=S.teams.map((t,i)=>({n:t.n,c:t.c,pos:teamPosHist[i]}));
- const drvSeries=S.drv.filter(d=>drvPosHist[d.id].some(p=>p!=null)).map(d=>({n:d.n,c:S.teams[last(d)].c,pos:drvPosHist[d.id]}));
- const mode=V.dashMode||'t';
- const series=mode==='t'?teamSeries:drvSeries;
- const maxPos=mode==='t'?S.teams.length:Math.min(S.drv.length,22);
- const chart=lineChart(series,labels,{maxPos});
- const leg=series.map(s=>`<span><i style="background:${s.c}"></i>${esc(s.n)}</span>`).join('');
- return`<div class="card" style="padding-bottom:10px"><div class="seg"><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button></div>
- <div class="mu" style="margin-bottom:8px">Место после каждого этапа (1 — выше)</div>
- ${chart}<div class="leg">${leg}</div></div>`}
+ if(done.length<1)return`<div class="em"><h2>Нет результатов</h2><p>Загрузите или введите результаты этапов — график покажет эволюцию очков.</p></div>`;
+ if(V.dashIdx==null||V.dashIdx>=done.length)V.dashIdx=done.length-1;
+ const mode=V.dashMode||'d';
+ const title=mode==='d'?'Эволюция очков пилотов':'Эволюция очков команд';
+ return`<div class="dash-card"><div class="seg" style="margin-bottom:10px"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>
+ <div class="dash-title">${title}</div>
+ ${pointsChart(done,mode)}</div>`}
 
 function gpView(){
  const g=gp(),k=V.mode;
@@ -234,19 +242,20 @@ function setView(){
  <button class="pr" data-act="newd">+ Добавить пилота</button>
  <div class="card gap"><div class="mu" style="margin-bottom:8px">Резервная копия</div><div class="row"><button data-act="show">Показать копию</button><button data-act="restore">Восстановить из текста</button></div><textarea id="bk" placeholder="Скопируйте сюда текст копии, чтобы восстановить"></textarea></div></div>`}
 
-function applyChartTransform(){
- const g=$('#chartG');if(!g)return;const c=V.cz;g.setAttribute('transform',`translate(${c.x},${c.y}) scale(${c.s})`)}
 function bindChartZoom(){
- const wrap=$('#chartWrap'),svg=$('#chartSvg');if(!wrap||!svg)return;
- const c=V.cz;
- const pt=(e)=>{const r=svg.getBoundingClientRect(),vb=svg.viewBox.baseVal;return{x:vb.x+(e.clientX-r.left)/r.width*vb.width,y:vb.y+(e.clientY-r.top)/r.height*vb.height}};
- wrap.addEventListener('wheel',e=>{e.preventDefault();const p=pt(e),factor=e.deltaY<0?1.12:1/1.12;const ns=Math.min(12,Math.max(0.4,c.s*factor));const k=ns/c.s;c.x=p.x-(p.x-c.x)*k;c.y=p.y-(p.y-c.y)*k;c.s=ns;applyChartTransform()},{passive:false});
+ const box=$('#chartBox'),svg=$('#chartSvg');if(!box||!svg)return;
+ let scale=1,tx=0,ty=0;
+ const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+ while(svg.firstChild)g.appendChild(svg.firstChild);
+ svg.appendChild(g);
+ const apply=()=>g.setAttribute('transform',`translate(${tx},${ty}) scale(${scale})`);
+ const pt=e=>{const r=svg.getBoundingClientRect(),vb=svg.viewBox.baseVal;return{x:vb.x+(e.clientX-r.left)/r.width*vb.width,y:vb.y+(e.clientY-r.top)/r.height*vb.height}};
+ box.addEventListener('wheel',e=>{e.preventDefault();const p=pt(e),f=e.deltaY<0?1.12:1/1.12;const ns=Math.min(8,Math.max(0.5,scale*f));const k=ns/scale;tx=p.x-(p.x-tx)*k;ty=p.y-(p.y-ty)*k;scale=ns;apply()},{passive:false});
  let drag=null;
- wrap.addEventListener('pointerdown',e=>{if(e.button!==0)return;drag={x:e.clientX,y:e.clientY,ox:c.x,oy:c.y};wrap.setPointerCapture(e.pointerId)});
- wrap.addEventListener('pointermove',e=>{if(!drag)return;const r=svg.getBoundingClientRect(),vb=svg.viewBox.baseVal;const dx=(e.clientX-drag.x)/r.width*vb.width,dy=(e.clientY-drag.y)/r.height*vb.height;c.x=drag.ox+dx;c.y=drag.oy+dy;applyChartTransform()});
- wrap.addEventListener('pointerup',()=>{drag=null});
- wrap.addEventListener('pointercancel',()=>{drag=null});
- wrap.addEventListener('dblclick',()=>{c.s=1;c.x=0;c.y=0;applyChartTransform()})}
+ box.addEventListener('pointerdown',e=>{if(e.button!==0||e.target.closest('[data-act=dashi]'))return;drag={x:e.clientX,y:e.clientY,ox:tx,oy:ty};box.setPointerCapture(e.pointerId)});
+ box.addEventListener('pointermove',e=>{if(!drag)return;const r=svg.getBoundingClientRect(),vb=svg.viewBox.baseVal;tx=drag.ox+(e.clientX-drag.x)/r.width*vb.width;ty=drag.oy+(e.clientY-drag.y)/r.height*vb.height;apply()});
+ box.addEventListener('pointerup',()=>{drag=null});
+ box.addEventListener('dblclick',()=>{scale=1;tx=0;ty=0;apply()})}
 function render(){const o=$('.sheet'),st=o?o.scrollTop:0;$('#app').innerHTML=(V.gp?gpView():mainView())+(V.set?setView():'');const n=$('.sheet');if(n)n.scrollTop=st;if(V.tab==='dash'&&!V.gp)bindChartZoom()}
 
 const norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
@@ -295,7 +304,8 @@ async function loadGp(g){
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const d=b.dataset,a=d.act,g=V.gp&&gp(),i=+d.i;
  const L=g&&(V.mode=='r'?g.race:V.mode=='s'?g.spr:V.mode=='q'?g.q:(ensurePred(g).race));if(a!='del')V.del=false;if(a!='delp')V.dd=null;
  if(a=='tab')V.tab=d.v;else if(a=='open'){V.gp=d.id;V.mode='r'}else if(a=='back')V.gp=null;else if(a=='mode')V.mode=d.v;
- else if(a=='dashm'){V.dashMode=d.v;V.cz={s:1,x:0,y:0};render();return}
+ else if(a=='dashm'){V.dashMode=d.v;render();return}
+ else if(a=='dashi'){V.dashIdx=+d.i;render();return}
  else if(a=='add')L.push(d.id);
  else if(a=='rm'){delete g.ov[V.mode+L[i]];L.splice(i,1)}
  else if(a=='up'){if(i>0)[L[i-1],L[i]]=[L[i],L[i-1]]}
