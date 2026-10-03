@@ -129,7 +129,7 @@ function mainView(){
 function setView(){
  const op=v=>S.teams.map((t,i)=>`<option value="${i}"${i==v?' selected':''}>${esc(t.n)}</option>`).join('');
  return`<div class="sheet"><div class="row"><h2 style="margin:0;font:700 22px var(--hd)">Настройки</h2><button class="n" data-act="x">Готово</button></div>
- <div class="card"><div class="mu">Сезон</div><div class="row"><input type="number" data-year="1" value="${S.year}"><button data-act="sched">Загрузить расписание</button></div></div>
+ <div class="card"><div class="mu">Сезон</div><div class="row"><input type="number" data-year="1" value="${S.year}"><button data-act="sched">Только расписание</button></div><button class="pr" data-act="sync" style="width:100%;margin-top:4px">Загрузить расписание и все результаты</button><div class="mu" style="margin-top:6px">Загрузит все этапы сезона и результаты уже прошедших. Этапы с введёнными результатами не изменяются.</div></div>
  <div class="card"><div class="mu" style="margin-bottom:8px">Названия команд</div>${S.teams.map((t,i)=>`<input type="text" style="margin-bottom:6px" data-t="${i}" value="${esc(t.n)}">`).join('')}</div>
  <div class="mu" style="margin:0 4px 8px">Пилоты. У каждого пилота периоды: команда, с какого этапа, по какой (пусто — до конца сезона). Имена латиницей, фамилия последней — так работает автозагрузка. «Сменить команду» закрывает текущий период и добавляет новый со следующего этапа после последнего заполненного. Замена на один этап: у основного пилота закройте период до этапа перед пропуском и добавьте новый после него, а заменяющему задайте период на нужный этап.</div>
  ${S.drv.map(d=>`<div class="card"><div class="row"><input type="text" data-dn="${d.id}" value="${esc(d.n)}"><button class="dg n" data-act="delp" data-id="${d.id}">${V.dd==d.id?'Точно?':'Удалить'}</button></div>${d.s.map((z,j)=>`<div class="rr"><select data-sg="${d.id}:${j}:t">${op(z.t)}</select><input type="number" data-sg="${d.id}:${j}:f" value="${z.f}" aria-label="С этапа"><input type="number" data-sg="${d.id}:${j}:u" value="${z.u??''}" placeholder="по этап" aria-label="По этап"></div>`).join('')}<button data-act="addp" data-id="${d.id}">Сменить команду</button></div>`).join('')}
@@ -146,14 +146,24 @@ async function sched(){
   T.Races.forEach(r=>{if(S.gps.some(g=>g.r==+r.round))return;S.gps.push({id:'g'+r.round+Date.now(),n:r.raceName,r:+r.round,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{}});n++});
   S.gps.sort((a,b)=>a.r-b.r);save();V.set=false;render();toast('Добавлено гран-при: '+n)}
  catch(e){toast('Не удалось связаться с базой F1. В предпросмотре это заблокировано; на GitHub Pages должно работать.')}}
+let MS=[];
+async function syncAll(){
+ try{toast('Загружаю расписание…');const T=await jget(API+S.year+'.json');
+  T.Races.forEach(r=>{let g=S.gps.find(x=>x.r==+r.round);if(!g){g={id:'g'+r.round+Date.now(),n:r.raceName,r:+r.round,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{}};S.gps.push(g)}if(!g.n||g.n=='Новый гран-при')g.n=r.raceName;g.d=r.date;if(r.Sprint)g.sp=true});
+  S.gps.sort((a,b)=>a.r-b.r);save();render()}
+ catch(e){toast('Не удалось загрузить расписание. Проверьте сезон и подключение.');return}
+ const td=new Date().toISOString().slice(0,10),todo=S.gps.filter(g=>g.d&&g.d<=td&&!fl(g));let n=0,ok=0,stop=false;MS=[];
+ for(const g of todo){toast('Загружаю '+(++n)+' из '+todo.length+': '+g.n);const r=await loadGp(g);if(r<0){stop=true;break}if(r>0)ok++;await new Promise(z=>setTimeout(z,1200))}
+ const ms=[...new Set(MS)];
+ toast('Загружено этапов: '+ok+(stop?'. Остановлено из-за ошибки, повторите позже — загрузятся только недостающие.':'.')+(ms.length?' Не распознаны: '+ms.join(', ')+'.':''))}
 async function loadGp(g){
  try{const b=API+S.year+'/'+g.r+'/',miss=new Set(),m=a=>a.map(x=>{const i=drs().find(d=>norm(d.n.split(' ').pop())==norm(x.Driver.familyName))?.id;if(!i)miss.add(x.Driver.familyName);return i}).filter(Boolean);
   const F=async p=>(await jget(b+p+'.json')).Races[0];
   const[a,q,s]=await Promise.all([F('results'),F('qualifying'),F('sprint').catch(()=>null)]);
-  if(!a&&!q){toast('Для этого этапа данных пока нет');return}
+  if(!a&&!q){toast('Для этого этапа данных пока нет');return 0}
   if(!g.n||g.n=='Новый гран-при')g.n=(a||q).raceName;const ra=a?.Results||[];g.race=m(ra);g.q=m(q?.QualifyingResults||[]);g.spr=m(s?.SprintResults||[]);if(g.spr.length)g.sp=true;
-  save();render();toast(miss.size?'Не распознаны: '+[...miss].join(', ')+'. Проверьте имена в настройках':'Результаты загружены')}
- catch(e){toast('Не удалось загрузить. Проверьте номер этапа и сезон; в предпросмотре сеть заблокирована.')}}
+  MS.push(...miss);save();render();toast(miss.size?'Не распознаны: '+[...miss].join(', ')+'. Проверьте имена в настройках':'Результаты загружены');return 1}
+ catch(e){toast('Не удалось загрузить. Проверьте номер этапа и сезон; в предпросмотре сеть заблокирована.');return -1}}
 
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const d=b.dataset,a=d.act,g=V.gp&&gp(),i=+d.i;
  const L=g&&(V.mode=='r'?g.race:V.mode=='s'?g.spr:g.q);if(a!='del')V.del=false;if(a!='delp')V.dd=null;
@@ -167,7 +177,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
  else if(a=='newd'){const f=Math.max(0,...S.gps.filter(fl).map(g=>g.r))+1;S.drv.push({id:'d'+Date.now(),n:'Новый пилот',s:[{t:0,f,u:null}]})}
  else if(a=='delp'){if(V.dd==d.id){S.drv=S.drv.filter(z=>z.id!=d.id);S.gps.forEach(g=>['race','spr','q'].forEach(k=>g[k]=g[k].filter(x=>x!=d.id)));V.dd=null}else V.dd=d.id}
  else if(a=='set')V.set=true;else if(a=='x')V.set=false;
- else if(a=='sched')return sched();else if(a=='load')return loadGp(g);
+ else if(a=='sched')return sched();else if(a=='sync')return syncAll();else if(a=='load')return loadGp(g);
  else if(a=='show'){$('#bk').value=JSON.stringify(S);return}
  else if(a=='restore'){try{const o=JSON.parse($('#bk').value);if(!o.teams||!o.gps)throw 0;S=mig(o);toast('Данные восстановлены')}catch(x){toast('Текст копии не распознан');return}}
  save();render()});
