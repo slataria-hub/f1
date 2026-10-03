@@ -64,7 +64,8 @@ const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&'
 const drs=()=>S.drv,gp=()=>S.gps.find(g=>g.id==V.gp);
 const sn=n=>n.trim().split(' ').pop().slice(0,3).toUpperCase();
 const fl=g=>g.race.length||g.spr.length;
-const tm=(d,r)=>{const z=d.s.find(x=>r>=x.f&&(x.u==null||r<=x.u));return z?z.t:-1};
+const tm=(d,r)=>{const g=S.gps.find(x=>x.r==r),a=g&&g.at&&g.at[d.id];if(a!=null)return a;const z=d.s.find(x=>r>=x.f&&(x.u==null||r<=x.u));return z?z.t:-1};
+const part=(g,id)=>g.race.includes(id)||g.spr.includes(id)||g.q.includes(id);
 const dc=(d,r)=>{const t=tm(d,r);return t<0?'#888':S.teams[t].c};
 const tn=(d,r)=>{const t=tm(d,r);return t<0?'вне команды':esc(S.teams[t].n)};
 const last=d=>d.s[d.s.length-1].t;
@@ -78,14 +79,14 @@ function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';cl
 
 function tableView(){
  if(!S.gps.length)return`<div class="em"><h2>Пока нет гран-при</h2><p>Добавьте первый вручную или загрузите расписание сезона.</p><button class="pr" data-act="new">Добавить гран-при</button> <button data-act="set">Загрузить расписание</button></div>`;
- const C=S.teams.map((t,i)=>S.drv.filter(d=>d.s.some(z=>z.t==i)));
+ const C=S.teams.map((t,i)=>S.drv.filter(d=>d.s.some(z=>z.t==i)||S.gps.some(g=>g.at&&g.at[d.id]===i)));
  let h='<div class="tw"><table><thead><tr><th class="s1" rowspan="2">Гран-при</th>';
  S.teams.forEach((t,i)=>h+=`<th colspan="${C[i].length+1}" class="th" style="--c:${t.c}">${esc(t.n)}</th>`);
  h+='</tr><tr>';
  S.teams.forEach((t,i)=>{C[i].forEach(d=>h+=`<th class="dn">${esc(sn(d.n))}</th>`);h+='<th class="dn tt">Σ</th>'});
  h+='</tr></thead><tbody>';
  S.gps.forEach(g=>{const f=fl(g);h+=`<tr data-act="open" data-id="${g.id}"><th class="s1">${esc(g.n)}${g.sp?'<i>спринт</i>':''}</th>`;
-  S.teams.forEach((t,i)=>{C[i].forEach(d=>h+=`<td>${f?(tm(d,g.r)==i?tot(g,d.id):''):'·'}</td>`);h+=`<td class="tt">${f?tP(i,g):'·'}</td>`});
+  S.teams.forEach((t,i)=>{C[i].forEach(d=>h+=`<td>${f?(tm(d,g.r)==i&&part(g,d.id)?tot(g,d.id):''):'·'}</td>`);h+=`<td class="tt">${f?tP(i,g):'·'}</td>`});
   h+='</tr>'});
  h+='</tbody><tfoot><tr><th class="s1">Всего очков</th>';
  S.teams.forEach((t,i)=>{C[i].forEach(d=>h+=`<td>${dTi(d,i)}</td>`);h+=`<td class="tt">${tT(i)}</td>`});
@@ -99,7 +100,7 @@ function standView(){
 
 function matesView(){const P={},K=(i,x,y)=>i+x.id+y.id;
  S.teams.forEach((t,i)=>{const c=S.drv.filter(d=>d.s.some(z=>z.t==i&&z.u==null));if(c.length>1)P[K(i,c[0],c[1])]={i,x:c[0],y:c[1],a:0,b:0}});
- S.gps.forEach(g=>S.teams.forEach((t,i)=>{const m=S.drv.filter(d=>tm(d,g.r)==i);if(m.length<2)return;const[x,y]=m,p=P[K(i,x,y)]||(P[K(i,x,y)]={i,x,y,a:0,b:0}),u=g.q.indexOf(x.id),v=g.q.indexOf(y.id);if(u<0&&v<0)return;if(v<0||(u>=0&&u<v))p.a++;else p.b++}));
+ S.gps.forEach(g=>S.teams.forEach((t,i)=>{const m=S.drv.filter(d=>tm(d,g.r)==i&&(!fl(g)||part(g,d.id)));if(m.length<2)return;const[x,y]=m,p=P[K(i,x,y)]||(P[K(i,x,y)]={i,x,y,a:0,b:0}),u=g.q.indexOf(x.id),v=g.q.indexOf(y.id);if(u<0&&v<0)return;if(v<0||(u>=0&&u<v))p.a++;else p.b++}));
  return Object.values(P).sort((p,q)=>p.i-q.i).map(p=>{const t=S.teams[p.i],s=p.a+p.b||1;
   return`<div class="card"><div class="sc"><span style="color:var(--tx)">${esc(p.x.n)}</span>${p.a} : ${p.b}<span style="color:var(--tx)">${esc(p.y.n)}</span></div><div class="bar"><i style="width:${p.a/s*100}%;background:${t.c}"></i><i style="width:${p.b/s*100}%;background:${t.c};opacity:.35"></i></div><div class="mu" style="margin-top:6px">${esc(t.n)}: сравнений квалификации — ${p.a+p.b}</div></div>`}).join('')}
 
@@ -117,7 +118,7 @@ function gpView(){
 function gpsView(){
  if(!S.gps.length)return tableView();
  const A=[...S.gps].sort((a,b)=>(!fl(a)-!fl(b))||(fl(a)?b.r-a.r:a.r-b.r));
- return A.map(g=>{const f=fl(g),B=S.teams.map((t,i)=>({t,i,m:S.drv.filter(d=>tm(d,g.r)==i),p:tP(i,g)})).filter(b=>b.m.length);
+ return A.map(g=>{const f=fl(g),B=S.teams.map((t,i)=>({t,i,m:S.drv.filter(d=>tm(d,g.r)==i&&(!f||part(g,d.id))),p:tP(i,g)})).filter(b=>b.m.length);
   if(f)B.sort((a,b)=>b.p-a.p);
   const dr=d=>{const q=g.q.indexOf(d.id)+1,r=g.race.indexOf(d.id)+1,s=g.spr.indexOf(d.id)+1,x=[q?'квал. '+q:'',r?'гонка '+r:'',s?'спринт '+s:''].filter(Boolean).map(z=>`<i>${z}</i>`).join('');return`<div class="dr"><span>${esc(d.n)}</span><span class="mu">${x}</span><b>${tot(g,d.id)}</b></div>`};
   return`<div class="card gc" data-act="open" data-id="${g.id}"><div class="gh"><b>${esc(g.n)}</b><span class="mu">этап ${g.r}${g.sp?', спринт':''}</span></div>${f?B.map(b=>`<div class="tb" style="--c:${b.t.c}"><div class="tn"><span>${esc(b.t.n)}</span><span class="mu">за этап</span><b>${b.p}</b><span class="mu">всего ${S.gps.reduce((a,x)=>a+(x.r<=g.r?tP(b.i,x):0),0)}</span></div>${b.m.map(dr).join('')}</div>`).join(''):'<p class="mu" style="margin:0">Результатов пока нет. Нажмите, чтобы ввести.</p>'}</div>`}).join('')}
@@ -153,17 +154,17 @@ async function syncAll(){
   T.Races.forEach(r=>{let g=S.gps.find(x=>x.r==+r.round);if(!g){g={id:'g'+r.round+Date.now(),n:r.raceName,r:+r.round,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{}};S.gps.push(g)}if(!g.n||g.n=='Новый гран-при')g.n=r.raceName;g.d=r.date;if(r.Sprint)g.sp=true});
   S.gps.sort((a,b)=>a.r-b.r);save();render()}
  catch(e){toast('Не удалось загрузить расписание. Проверьте сезон и подключение.');return}
- const td=new Date().toISOString().slice(0,10),todo=S.gps.filter(g=>g.d&&g.d<=td&&!fl(g));let n=0,ok=0,stop=false;MS=[];
+ const td=new Date().toISOString().slice(0,10),todo=S.gps.filter(g=>g.d&&g.d<=td&&(!fl(g)||!g.at));let n=0,ok=0,stop=false;MS=[];
  for(const g of todo){toast('Загружаю '+(++n)+' из '+todo.length+': '+g.n);const r=await loadGp(g);if(r<0){stop=true;break}if(r>0)ok++;await new Promise(z=>setTimeout(z,1200))}
  const ms=[...new Set(MS)];
- toast('Загружено этапов: '+ok+(stop?'. Остановлено из-за ошибки, повторите позже — загрузятся только недостающие.':'.')+(ms.length?' Не распознаны: '+ms.join(', ')+'.':''))}
+ toast('Загружено этапов: '+ok+(stop?'. Остановлено из-за ошибки, повторите позже — загрузятся только недостающие.':'.')+(ms.length?' Добавлены новые пилоты: '+ms.join(', ')+'.':''))}
 async function loadGp(g){
- try{const b=API+S.year+'/'+g.r+'/',miss=new Set(),m=a=>a.map(x=>{const c=drs().filter(d=>norm(d.n.split(' ').pop())==norm(x.Driver.familyName)),i=(c.find(d=>tm(d,g.r)>=0)||c[0])?.id;if(!i)miss.add(x.Driver.familyName);return i}).filter(Boolean);
+ try{const b=API+S.year+'/'+g.r+'/',miss=new Set(),ti=n=>{const k=norm(n);return k?S.teams.findIndex(t=>{const u=norm(t.n);return k.includes(u)||u.includes(k)}):-1},m=a=>a.map(x=>{const c=drs().filter(d=>norm(d.n.split(' ').pop())==norm(x.Driver.familyName)),T=ti(x.Constructor?.name||'');let d=c.find(d=>tm(d,g.r)>=0)||c[0];if(!d){d={id:'d'+Date.now()+x.Driver.familyName,n:x.Driver.givenName+' '+x.Driver.familyName,s:[{t:Math.max(T,0),f:g.r,u:g.r}]};S.drv.push(d);miss.add(d.n)}if(T>=0)g.at[d.id]=T;return d.id});
   const F=async p=>(await jget(b+p+'.json')).Races[0];
   const[a,q,s]=await Promise.all([F('results'),F('qualifying'),F('sprint').catch(()=>null)]);
   if(!a&&!q){toast('Для этого этапа данных пока нет');return 0}
-  if(!g.n||g.n=='Новый гран-при')g.n=(a||q).raceName;const ra=a?.Results||[];g.race=m(ra);g.q=m(q?.QualifyingResults||[]);g.spr=m(s?.SprintResults||[]);if(g.spr.length)g.sp=true;
-  MS.push(...miss);save();render();toast(miss.size?'Не распознаны: '+[...miss].join(', ')+'. Проверьте имена в настройках':'Результаты загружены');return 1}
+  g.at={};if(!g.n||g.n=='Новый гран-при')g.n=(a||q).raceName;const ra=a?.Results||[];g.race=m(ra);g.q=m(q?.QualifyingResults||[]);g.spr=m(s?.SprintResults||[]);if(g.spr.length)g.sp=true;
+  MS.push(...miss);save();render();toast(miss.size?'Добавлены новые пилоты: '+[...miss].join(', ')+'. Проверьте имена в настройках':'Результаты загружены');return 1}
  catch(e){toast('Не удалось загрузить. Проверьте номер этапа и сезон; в предпросмотре сеть заблокирована.');return -1}}
 
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const d=b.dataset,a=d.act,g=V.gp&&gp(),i=+d.i;
