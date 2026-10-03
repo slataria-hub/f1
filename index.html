@@ -94,6 +94,7 @@ async function boot(){
  else if(shared&&shared.teams){S=mig(shared);save();toast('Загружены общие данные сайта')}
  else if(local&&local.teams){S=mig(local)}
  else{S=init()}
+ try{dedupeDrivers()}catch(e){}
  V.booting=false;render()}
 function downloadData(){
  const blob=new Blob([JSON.stringify(S)],{type:'application/json'});
@@ -276,7 +277,8 @@ function setView(){
  return`<div class="sheet"><div class="row"><h2 style="margin:0;font:700 22px var(--hd)">Настройки</h2><button class="n" data-act="x">Готово</button></div>
  <div class="card"><div class="mu">Сезон</div><div class="row"><input type="number" data-year="1" value="${S.year}"><button data-act="sched">Только расписание</button></div><button class="pr" data-act="sync" style="width:100%;margin-top:4px">Загрузить расписание и все результаты</button><div class="mu" style="margin-top:6px">Загрузит все этапы сезона и результаты уже прошедших. Этапы с введёнными результатами не изменяются.</div>
  <button data-act="hist" style="width:100%;margin-top:10px">Загрузить историю с 2020 года</button><div class="mu" style="margin-top:6px">Добавит все завершённые гран-при с 2020 по текущий год. Уже заполненные этапы не перезаписываются. Загрузка займёт несколько минут.</div>
- <button data-act="fixteams" style="width:100%;margin-top:10px">Исправить привязку пилотов к командам</button><div class="mu" style="margin-top:6px">Перезагрузит результаты всех этапов и заново сопоставит пилотов с командами (AlphaTauri→Racing Bulls, Sauber→Audi и т.д.). Нужно, если колонки команд выглядят неправильно.</div></div>
+ <button data-act="fixteams" style="width:100%;margin-top:10px">Исправить привязку пилотов к командам</button><div class="mu" style="margin-top:6px">Перезагрузит результаты всех этапов и заново сопоставит пилотов с командами (AlphaTauri→Racing Bulls, Sauber→Audi и т.д.). Нужно, если колонки команд выглядят неправильно.</div>
+ <button data-act="dedupe" style="width:100%;margin-top:10px">Удалить дубликаты пилотов</button><div class="mu" style="margin-top:6px">Сливает повторяющиеся записи (например несколько «de Vries» → один пилот). Быстро, без загрузки из сети.</div></div>
  <div class="card"><div class="mu" style="margin-bottom:8px">Названия команд</div>${S.teams.map((t,i)=>`<input type="text" style="margin-bottom:6px" data-t="${i}" value="${esc(t.n)}">`).join('')}</div>
  <div class="mu" style="margin:0 4px 8px">Пилоты. У каждого пилота периоды: команда, с какого этапа, по какой (пусто — до конца сезона). Имена латиницей, фамилия последней — так работает автозагрузка. «Сменить команду» закрывает текущий период и добавляет новый со следующего этапа после последнего заполненного. Замена на один этап: у основного пилота закройте период до этапа перед пропуском и добавьте новый после него, а заменяющему задайте период на нужный этап.</div>
  ${S.drv.map(d=>`<div class="card"><div class="row"><input type="text" data-dn="${d.id}" value="${esc(d.n)}"><button class="dg n" data-act="delp" data-id="${d.id}">${V.dd==d.id?'Точно?':'Удалить'}</button></div>${dup(d)?'<div class="mu" style="color:#d33;margin-bottom:6px">Есть другой пилот с такой же фамилией. Автозагрузка кладёт результаты только одному из них. Оставьте одну запись и задайте ей несколько периодов.</div>':''}${d.s.map((z,j)=>`<div class="rr"><select data-sg="${d.id}:${j}:t">${op(z.t)}</select><input type="number" data-sg="${d.id}:${j}:f" value="${z.f}" aria-label="С этапа"><input type="number" data-sg="${d.id}:${j}:u" value="${z.u??''}" placeholder="по этап" aria-label="По этап"></div>`).join('')}<button data-act="addp" data-id="${d.id}">Сменить команду</button></div>`).join('')}
@@ -367,19 +369,65 @@ async function fixTeams(){
   const r=await loadGp(g);if(r<0){stop=true;break}if(r>0)ok++;
   await new Promise(z=>setTimeout(z,1100));
  }
+ const dup=dedupeDrivers();
  V.set=false;render();
- toast('Исправлено этапов: '+ok+(stop?'. Остановлено, нажмите ещё раз.':'.'));
+ toast('Исправлено этапов: '+ok+(stop?'. Остановлено, нажмите ещё раз.':'')+(dup?'. Слито дубликатов: '+dup:''));
+}
+// сопоставление пилота API с записью в S.drv (учитывает «de Vries», «van der …»)
+function findDrivers(given,family){
+ const fam=norm(family||''),giv=norm(given||''),full=norm(((given||'')+' '+(family||'')).trim());
+ return drs().filter(d=>{
+  const dn=norm(d.n);
+  if(full&&dn===full)return true;
+  if(fam&&dn.endsWith(fam))return true;
+  const parts=d.n.trim().split(/\s+/);
+  if(fam&&norm(parts[parts.length-1])===fam)return true;
+  if(parts.length>=2&&fam&&norm(parts.slice(-2).join(' '))===fam)return true;
+  if(giv&&fam&&dn.includes(giv)&&dn.includes(fam.split(' ').pop()))return true;
+  return false;
+ });
+}
+function driverKey(n){
+ const p=norm(n).trim().split(/\s+/);
+ if(p.length>=2&&/^(de|van|von|di|da|le|la|du)$/.test(p[p.length-2]))return p.slice(-2).join(' ');
+ return p[p.length-1]||norm(n);
+}
+// слияние дубликатов пилотов с одной фамилией/именем
+function dedupeDrivers(){
+ const groups={};
+ S.drv.forEach(d=>{const k=driverKey(d.n);(groups[k]=groups[k]||[]).push(d)});
+ let merged=0;
+ Object.values(groups).forEach(list=>{
+  if(list.length<2)return;
+  // оставляем запись с самым «полным» именем / наибольшим числом периодов
+  list.sort((a,b)=>(b.n.length-a.n.length)||(b.s.length-a.s.length));
+  const keep=list[0];
+  list.slice(1).forEach(dup=>{
+   // переносим периоды
+   dup.s.forEach(z=>keep.s.push(z));
+   // заменяем id во всех этапах
+   S.gps.forEach(g=>{
+    ['race','spr','q'].forEach(k=>{g[k]=(g[k]||[]).map(id=>id===dup.id?keep.id:id)});
+    if(g.at&&g.at[dup.id]!=null){g.at[keep.id]=g.at[dup.id];delete g.at[dup.id]}
+    if(g.ov){Object.keys(g.ov).forEach(key=>{if(key.endsWith(dup.id)){g.ov[key.replace(dup.id,keep.id)]=g.ov[key];delete g.ov[key]}})}
+    if(g.pred){['race','spr'].forEach(k=>{if(g.pred[k])g.pred[k]=g.pred[k].map(id=>id===dup.id?keep.id:id)})}
+   });
+   S.drv=S.drv.filter(x=>x.id!==dup.id);
+   merged++;
+  });
+ });
+ if(merged)save();
+ return merged;
 }
 async function loadGp(g){
  try{const yr=gy(g),b=API+yr+'/'+g.r+'/',miss=new Set();
   const m=a=>a.map(x=>{
-   const fam=norm(x.Driver.familyName),T=teamIndex(x.Constructor?.name||'');
-   let c=drs().filter(d=>norm(d.n.split(' ').pop())===fam);
-   // предпочитаем пилота уже с этой командой на этапе, иначе любого с той же фамилией
+   const T=teamIndex(x.Constructor?.name||'');
+   let c=findDrivers(x.Driver.givenName,x.Driver.familyName);
    let d=c.find(d=>g.at&&g.at[d.id]===T)||c.find(d=>tm(d,g)===T)||c[0];
    if(!d){
-    d={id:'d'+Date.now()+x.Driver.familyName,n:x.Driver.givenName+' '+x.Driver.familyName,s:T>=0?[{t:T,f:g.r,u:g.r}]:[{t:0,f:g.r,u:g.r}]};
-    // t:0 только как заглушка периода; фактическая команда — через g.at
+    const nm=(x.Driver.givenName+' '+x.Driver.familyName).trim();
+    d={id:'d'+Date.now()+'_'+norm(x.Driver.familyName).replace(/\s/g,''),n:nm,s:T>=0?[{t:T,f:g.r,u:g.r}]:[]};
     S.drv.push(d);miss.add(d.n);
    }
    if(!g.at)g.at={};
@@ -390,7 +438,10 @@ async function loadGp(g){
   const[a,q,s]=await Promise.all([F('results'),F('qualifying'),F('sprint').catch(()=>null)]);
   if(!a&&!q){toast('Для этого этапа данных пока нет');return 0}
   g.at={};if(!g.n||g.n=='Новый гран-при')g.n=(a||q).raceName;const ra=a?.Results||[];g.race=m(ra);g.q=m(q?.QualifyingResults||[]);g.spr=m(s?.SprintResults||[]);if(g.spr.length)g.sp=true;
-  MS.push(...miss);save();render();toast(miss.size?'Добавлены новые пилоты: '+[...miss].join(', ')+'. Проверьте имена в настройках':'Результаты загружены');return 1}
+  const dup=dedupeDrivers();
+  MS.push(...miss);save();render();
+  toast((miss.size?'Добавлены: '+[...miss].join(', ')+'. ':'Результаты загружены.')+(dup?' Слито дубликатов: '+dup+'.':''));
+  return 1}
  catch(e){toast('Не удалось загрузить. Проверьте номер этапа и сезон; в предпросмотре сеть заблокирована.');return -1}}
 
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const d=b.dataset,a=d.act,g=V.gp&&gp(),i=+d.i;
@@ -409,7 +460,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
  else if(a=='newd'){const f=Math.max(0,...S.gps.filter(fl).map(g=>g.r))+1;S.drv.push({id:'d'+Date.now(),n:'Новый пилот',s:[{t:0,f,u:null}]})}
  else if(a=='delp'){if(V.dd==d.id){S.drv=S.drv.filter(z=>z.id!=d.id);S.gps.forEach(g=>['race','spr','q'].forEach(k=>g[k]=g[k].filter(x=>x!=d.id)));V.dd=null}else V.dd=d.id}
  else if(a=='set')V.set=true;else if(a=='x')V.set=false;
- else if(a=='sched')return sched();else if(a=='sync')return syncAll();else if(a=='hist')return loadHist();else if(a=='fixteams')return fixTeams();else if(a=='load')return loadGp(g);
+ else if(a=='sched')return sched();else if(a=='sync')return syncAll();else if(a=='hist')return loadHist();else if(a=='fixteams')return fixTeams();else if(a=='dedupe'){const n=dedupeDrivers();toast(n?'Слито дубликатов: '+n:'Дубликатов не найдено');V.set=false;render();return}else if(a=='load')return loadGp(g);
  else if(a=='publish')return downloadData();
  else if(a=='loadshared')return loadShared();
  else if(a=='show'){$('#bk').value=JSON.stringify(S);return}
