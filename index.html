@@ -137,29 +137,38 @@ function hasPred(g){return g.pred&&((g.pred.race&&g.pred.race.length)||(g.pred.s
 function tableView(){
  const G=yearGps();
  if(!G.length)return`<div class="em"><h2>Нет гран-при за ${S.year}</h2><p>Переключите год стрелками или загрузите расписание сезона.</p><button class="pr" data-act="new">Добавить гран-при</button> <button data-act="set">Загрузить расписание</button></div>`;
- const C=S.teams.map((t,i)=>S.drv.filter(d=>G.some(g=>tm(d,g)===i&&(part(g,d.id)||!fl(g)))||d.s.some(z=>z.t==i)));
- // drop empty driver columns for this year if they never appear
- const C2=C.map(arr=>arr.filter(d=>G.some(g=>part(g,d.id)||(tm(d,g)>=0&&!fl(g)))||d.s.some(z=>z.t>=0)));
+ const hasRes=G.some(fl);
+ // только пилоты, реально выступавшие за команду в этом сезоне (по результатам этапов)
+ const C2=S.teams.map((t,i)=>{
+  if(hasRes){
+   return S.drv.filter(d=>G.some(g=>fl(g)&&tm(d,g)===i&&part(g,d.id))).sort((a,b)=>dTi(b,i)-dTi(a,i)||a.n.localeCompare(b.n));
+  }
+  return S.drv.filter(d=>d.s.some(z=>z.t===i&&(z.u==null||z.u>=1)));
+ });
+ const show=i=>C2[i].length>0||G.some(g=>tP(i,g)>0);
  let h='<div class="tw"><table><thead><tr><th class="s1" rowspan="2">Гран-при</th>';
- S.teams.forEach((t,i)=>{if(!C2[i].length&&!G.some(g=>tP(i,g)>0))return;h+=`<th colspan="${C2[i].length+1}" class="th" style="--c:${t.c}">${esc(t.n)}</th>`});
+ S.teams.forEach((t,i)=>{if(!show(i))return;h+=`<th colspan="${Math.max(C2[i].length,0)+1}" class="th" style="--c:${t.c}">${esc(t.n)}</th>`});
  h+='</tr><tr>';
- S.teams.forEach((t,i)=>{if(!C2[i].length&&!G.some(g=>tP(i,g)>0))return;C2[i].forEach(d=>h+=`<th class="dn">${esc(sn(d.n))}</th>`);h+='<th class="dn tt">Σ</th>'});
+ S.teams.forEach((t,i)=>{if(!show(i))return;C2[i].forEach(d=>h+=`<th class="dn">${esc(sn(d.n))}</th>`);h+='<th class="dn tt">Σ</th>'});
  h+='</tr></thead><tbody>';
  G.forEach(g=>{const f=fl(g);
   h+=`<tr data-act="open" data-id="${g.id}"><th class="s1"><span class="rn">${g.r}</span>${esc(g.n)}${g.sp?'<i>спринт</i>':''}</th>`;
-  S.teams.forEach((t,i)=>{if(!C2[i].length&&!G.some(x=>tP(i,x)>0))return;C2[i].forEach(d=>h+=`<td>${f?(tm(d,g)==i&&part(g,d.id)?tot(g,d.id):''):'·'}</td>`);h+=`<td class="tt">${f?tP(i,g):'·'}</td>`});
+  S.teams.forEach((t,i)=>{if(!show(i))return;C2[i].forEach(d=>h+=`<td>${f?(tm(d,g)==i&&part(g,d.id)?tot(g,d.id):''):'·'}</td>`);h+=`<td class="tt">${f?tP(i,g):'·'}</td>`});
   h+='</tr>'});
  h+='</tbody><tfoot><tr><th class="s1">Всего очков</th>';
- S.teams.forEach((t,i)=>{if(!C2[i].length&&!G.some(g=>tP(i,g)>0))return;C2[i].forEach(d=>h+=`<td>${dTi(d,i)}</td>`);h+=`<td class="tt">${tT(i)}</td>`});
- return h+'</tr></tfoot></table></div><p class="mu" style="padding:0 4px">Сезон ${S.year}. Нажмите на строку, чтобы открыть гран-при. Таблицу можно листать вбок.</p>'}
+ S.teams.forEach((t,i)=>{if(!show(i))return;C2[i].forEach(d=>h+=`<td>${dTi(d,i)}</td>`);h+=`<td class="tt">${tT(i)}</td>`});
+ return h+'</tr></tfoot></table></div><p class="mu" style="padding:0 4px">Сезон ${S.year}. В колонках — только пилоты, выступавшие за команду в этом сезоне. Нажмите на строку, чтобы открыть гран-при.</p>'}
 
 function standView(){
- const D=S.drv.map(d=>({n:d.n,c:S.teams[last(d)].c,sub:S.teams[last(d)].n,p:dT(d.id)})).sort((a,b)=>b.p-a.p);
- const T=S.teams.map((t,i)=>({n:t.n,c:t.c,p:tT(i)})).sort((a,b)=>b.p-a.p);
+ const Y=yearGps();
+ const teamOf=d=>{for(let i=Y.length-1;i>=0;i--){const t=tm(d,Y[i]);if(t>=0&&part(Y[i],d.id))return t}return last(d)};
+ const D=S.drv.filter(d=>Y.some(g=>part(g,d.id))).map(d=>{const ti=teamOf(d);return{n:d.n,c:ti>=0?S.teams[ti].c:'#888',sub:ti>=0?S.teams[ti].n:'',p:dT(d.id)}}).sort((a,b)=>b.p-a.p);
+ const T=S.teams.map((t,i)=>({n:t.n,c:t.c,p:tT(i),i})).filter(t=>Y.some(g=>S.drv.some(d=>tm(d,g)===t.i&&part(g,d.id)))).sort((a,b)=>b.p-a.p);
+ if(!D.length&&!T.length)return`<div class="em"><h2>Нет зачёта за ${S.year}</h2><p>Нужны результаты этапов выбранного сезона.</p></div>`;
  const lst=A=>A.map((x,i)=>{const df=i===0?'—':(x.p-A[i-1].p);const dfs=df===0?'0':(df>0?'+'+df:String(df));
   return`<div class="li"><b>${i+1}</b><span class="dot" style="background:${x.c}"></span><span class="nm">${esc(x.n)}${x.sub?`<div class="mu">${esc(x.sub)}</div>`:''}</span><b>${x.p}</b><span class="df">${dfs}</span></div>`}).join('');
  const hd=t=>`<h3 style="margin:0 0 6px;font:700 18px var(--hd)">${t}</h3>`;
- return`<div class="card">${hd('Командный зачёт')}${lst(T)}</div><div class="card">${hd('Личный зачёт')}${lst(D)}</div>`}
+ return`<div class="card">${hd('Командный зачёт · '+S.year)}${lst(T)}</div><div class="card">${hd('Личный зачёт · '+S.year)}${lst(D)}</div>`}
 
 function matesView(){const P={},K=(i,x,y)=>i+x.id+y.id;const Y=yearGps();
  S.teams.forEach((t,i)=>{const c=S.drv.filter(d=>Y.some(g=>tm(d,g)===i));if(c.length>1){const pairs=[];for(let a=0;a<c.length;a++)for(let b=a+1;b<c.length;b++)pairs.push([c[a],c[b]]);pairs.forEach(([x,y])=>{P[K(i,x,y)]={i,x,y,a:0,b:0}})}});
