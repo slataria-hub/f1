@@ -107,7 +107,7 @@ function gpView(){
  const g=gp(),k=V.mode,L=k=='r'?g.race:k=='s'?g.spr:g.q,modes=[['r','Гонка'],...(g.sp?[['s','Спринт']]:[]),['q','Квалификация']];
  const row=(id,i)=>{const d=drs().find(z=>z.id==id);return`<div class="li"><b>${i+1}</b><span class="dot" style="background:${dc(d,g.r)}"></span><span class="nm">${esc(d.n)}<div class="mu">${tn(d,g.r)}</div></span>${k=='q'?'':`<input class="pt" type="number" data-ov="${k+id}" value="${pts(g,k,id)}" aria-label="Очки">`}<button data-act="up" data-i="${i}" aria-label="Выше">↑</button><button data-act="rm" data-i="${i}" aria-label="Убрать">✕</button></div>`};
  const rest=drs().filter(d=>!L.includes(d.id)).sort((a,b)=>(tm(b,g.r)>=0)-(tm(a,g.r)>=0));
- return`<header><button data-act="back">‹ Назад</button><button data-act="load">Загрузить из базы F1</button></header><main>
+ return`<header style="max-width:760px;margin:0 auto"><button data-act="back">‹ Назад</button><button data-act="load">Загрузить из базы F1</button></header><main style="max-width:760px;margin:0 auto">
  <div class="card"><div class="row"><input type="text" data-f="n" value="${esc(g.n)}" aria-label="Название"><input class="n" style="width:84px" type="number" data-f="r" value="${g.r}" aria-label="Номер этапа"></div>
  <div class="row"><label style="flex:1"><input type="checkbox" data-f="sp" ${g.sp?'checked':''}> Спринт-уикенд</label><button class="dg n" data-act="del">${V.del?'Точно удалить?':'Удалить'}</button></div></div>
  <div class="seg">${modes.map(m=>`<button class="${m[0]==k?'on':''}" data-act="mode" data-v="${m[0]}">${m[1]}</button>`).join('')}</div>
@@ -147,12 +147,12 @@ async function sched(){
   S.gps.sort((a,b)=>a.r-b.r);save();V.set=false;render();toast('Добавлено гран-при: '+n)}
  catch(e){toast('Не удалось связаться с базой F1. В предпросмотре это заблокировано; на GitHub Pages должно работать.')}}
 async function loadGp(g){
- try{const b=API+S.year+'/'+g.r+'/',m=a=>a.map(x=>drs().find(d=>norm(d.n.split(' ').pop())==norm(x.Driver.familyName))?.id).filter(Boolean);
+ try{const b=API+S.year+'/'+g.r+'/',miss=new Set(),m=a=>a.map(x=>{const i=drs().find(d=>norm(d.n.split(' ').pop())==norm(x.Driver.familyName))?.id;if(!i)miss.add(x.Driver.familyName);return i}).filter(Boolean);
   const F=async p=>(await jget(b+p+'.json')).Races[0];
   const[a,q,s]=await Promise.all([F('results'),F('qualifying'),F('sprint').catch(()=>null)]);
   if(!a&&!q){toast('Для этого этапа данных пока нет');return}
-  const ra=a?.Results||[];g.race=m(ra);g.q=m(q?.QualifyingResults||[]);g.spr=m(s?.SprintResults||[]);if(g.spr.length)g.sp=true;
-  save();render();toast(g.race.length<ra.length?'Часть пилотов не распознана — проверьте имена в настройках':'Результаты загружены')}
+  if(!g.n||g.n=='Новый гран-при')g.n=(a||q).raceName;const ra=a?.Results||[];g.race=m(ra);g.q=m(q?.QualifyingResults||[]);g.spr=m(s?.SprintResults||[]);if(g.spr.length)g.sp=true;
+  save();render();toast(miss.size?'Не распознаны: '+[...miss].join(', ')+'. Проверьте имена в настройках':'Результаты загружены')}
  catch(e){toast('Не удалось загрузить. Проверьте номер этапа и сезон; в предпросмотре сеть заблокирована.')}}
 
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const d=b.dataset,a=d.act,g=V.gp&&gp(),i=+d.i;
