@@ -9,8 +9,13 @@
 :root[data-theme="dark"]{--bg:#101216;--sf:#181b21;--ln:#272b34;--tx:#eceff4;--mu:#8a93a3}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 8px}
-h1{font:700 26px var(--hd);margin:0;letter-spacing:.2px}h1 small{color:var(--mu);font-weight:500;margin-left:6px}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 8px;gap:8px}
+h1{font:700 26px var(--hd);margin:0;letter-spacing:.2px;display:flex;align-items:center;gap:4px}
+h1 .ynav{display:inline-flex;align-items:center;gap:2px}
+h1 .ynav button{border:0;background:none;color:var(--ac);font:700 22px var(--hd);padding:4px 8px;min-height:36px;cursor:pointer;border-radius:8px}
+h1 .ynav button:hover{background:rgba(225,6,0,.1)}
+h1 .ynav button:disabled{opacity:.25;cursor:default}
+h1 small{color:var(--mu);font-weight:500}
 button,input,select{font:inherit;color:inherit}
 button{background:var(--sf);border:1px solid var(--ln);border-radius:10px;padding:9px 14px;cursor:pointer;min-height:40px}
 button:focus-visible,input:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
@@ -77,9 +82,26 @@ const R=[25,18,15,12,10,8,6,4,2,1],SP=[8,7,6,5,4,3,2,1];
 const T0=[["McLaren","#ff8000","Lando Norris","Oscar Piastri"],["Ferrari","#e8002d","Charles Leclerc","Lewis Hamilton"],["Red Bull","#3671c6","Max Verstappen","Isack Hadjar"],["Mercedes","#27c7a8","George Russell","Kimi Antonelli"],["Aston Martin","#229971","Fernando Alonso","Lance Stroll"],["Alpine","#ff87bc","Pierre Gasly","Franco Colapinto"],["Williams","#3aa7e0","Alexander Albon","Carlos Sainz"],["Racing Bulls","#6692ff","Liam Lawson","Arvid Lindblad"],["Haas","#9aa0a6","Esteban Ocon","Oliver Bearman"],["Audi","#a05a2c","Nico Hulkenberg","Gabriel Bortoleto"],["Cadillac","#e0b100","Valtteri Bottas","Sergio Perez"]];
 function init(){let n=0;return{year:2026,gps:[],teams:T0.map(t=>({n:t[0],c:t[1]})),drv:T0.flatMap((t,i)=>[t[2],t[3]].map(x=>({id:'d'+n++,n:x,s:[{t:i,f:1,u:null}]})))}}
 function mig(o){if(!o.drv){o.drv=o.teams.flatMap((t,i)=>t.d.map(d=>({id:d.id,n:d.n,s:[{t:i,f:1,u:null}]})));o.teams.forEach(t=>delete t.d)}if(o.gps)o.gps.forEach(g=>{if(g.y==null)g.y=o.year||2025});return o}
-let S;try{S=JSON.parse(localStorage.getItem('f1app'))}catch(e){}S=S&&S.teams?mig(S):init();
-const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'d',dashIdx:null};
+let S=init();
+const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'d',dashIdx:null,booting:true};
 const save=()=>{try{localStorage.setItem('f1app',JSON.stringify(S))}catch(e){}};
+const SHARED='./data.json';
+async function boot(){
+ let local=null;try{local=JSON.parse(localStorage.getItem('f1app'))}catch(e){}
+ let shared=null;
+ try{const r=await fetch(SHARED,{cache:'no-store'});if(r.ok)shared=await r.json()}catch(e){}
+ if(local&&local.teams&&(local.gps||[]).length){S=mig(local)}
+ else if(shared&&shared.teams){S=mig(shared);save();toast('Загружены общие данные сайта')}
+ else if(local&&local.teams){S=mig(local)}
+ else{S=init()}
+ V.booting=false;render()}
+function downloadData(){
+ const blob=new Blob([JSON.stringify(S)],{type:'application/json'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='data.json';a.click();URL.revokeObjectURL(a.href);
+ toast('Скачан data.json — положите файл в корень репозитория GitHub и сделайте commit')}
+async function loadShared(){
+ try{const r=await fetch(SHARED,{cache:'no-store'});if(!r.ok)throw 0;const o=await r.json();if(!o.teams)throw 0;S=mig(o);save();V.set=false;render();toast('Общие данные с сайта загружены')}
+ catch(e){toast('Файл data.json на сайте не найден. Опубликуйте его через «Скачать data.json».')}}
 const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const drs=()=>S.drv,gp=()=>S.gps.find(g=>g.id==V.gp);
 const sn=n=>n.trim().split(' ').pop().slice(0,3).toUpperCase();
@@ -94,10 +116,12 @@ const tn=(d,g)=>{const t=tm(d,g);return t<0?'вне команды':esc(S.teams[
 const last=d=>d.s[d.s.length-1].t;
 function pts(g,k,id){const L=k=='r'?g.race:g.spr,T=k=='r'?R:SP,o=g.ov[k+id];if(o!=null)return o;const i=L.indexOf(id);return i>=0&&i<T.length?T[i]:0}
 const tot=(g,id)=>pts(g,'r',id)+pts(g,'s',id);
-const dT=id=>S.gps.reduce((a,g)=>a+tot(g,id),0);
-const dTi=(d,i)=>S.gps.reduce((a,g)=>a+(tm(d,g)==i?tot(g,d.id):0),0);
+const yearGps=()=>sortGps(S.gps.filter(g=>gy(g)===S.year));
+const yearsList=()=>{const ys=new Set(S.gps.map(gy));ys.add(S.year);return[...ys].sort((a,b)=>a-b)};
+const dT=id=>yearGps().reduce((a,g)=>a+tot(g,id),0);
+const dTi=(d,i)=>yearGps().reduce((a,g)=>a+(tm(d,g)==i?tot(g,d.id):0),0);
 const tP=(i,g)=>S.drv.reduce((a,d)=>a+(tm(d,g)==i?tot(g,d.id):0),0);
-const tT=i=>S.gps.reduce((a,g)=>a+tP(i,g),0);
+const tT=i=>yearGps().reduce((a,g)=>a+tP(i,g),0);
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3500)}
 function ensurePred(g){if(!g.pred)g.pred={race:[],spr:[]};if(!g.pred.race)g.pred.race=[];if(!g.pred.spr)g.pred.spr=[];return g.pred}
 function predScore(g){
@@ -111,21 +135,23 @@ function predScore(g){
 function hasPred(g){return g.pred&&((g.pred.race&&g.pred.race.length)||(g.pred.spr&&g.pred.spr.length))}
 
 function tableView(){
- if(!S.gps.length)return`<div class="em"><h2>Пока нет гран-при</h2><p>Добавьте первый вручную или загрузите расписание сезона.</p><button class="pr" data-act="new">Добавить гран-при</button> <button data-act="set">Загрузить расписание</button></div>`;
- const C=S.teams.map((t,i)=>S.drv.filter(d=>d.s.some(z=>z.t==i)||S.gps.some(g=>g.at&&g.at[d.id]===i)));
- const G=sortGps(S.gps);
+ const G=yearGps();
+ if(!G.length)return`<div class="em"><h2>Нет гран-при за ${S.year}</h2><p>Переключите год стрелками или загрузите расписание сезона.</p><button class="pr" data-act="new">Добавить гран-при</button> <button data-act="set">Загрузить расписание</button></div>`;
+ const C=S.teams.map((t,i)=>S.drv.filter(d=>G.some(g=>tm(d,g)===i&&(part(g,d.id)||!fl(g)))||d.s.some(z=>z.t==i)));
+ // drop empty driver columns for this year if they never appear
+ const C2=C.map(arr=>arr.filter(d=>G.some(g=>part(g,d.id)||(tm(d,g)>=0&&!fl(g)))||d.s.some(z=>z.t>=0)));
  let h='<div class="tw"><table><thead><tr><th class="s1" rowspan="2">Гран-при</th>';
- S.teams.forEach((t,i)=>h+=`<th colspan="${C[i].length+1}" class="th" style="--c:${t.c}">${esc(t.n)}</th>`);
+ S.teams.forEach((t,i)=>{if(!C2[i].length&&!G.some(g=>tP(i,g)>0))return;h+=`<th colspan="${C2[i].length+1}" class="th" style="--c:${t.c}">${esc(t.n)}</th>`});
  h+='</tr><tr>';
- S.teams.forEach((t,i)=>{C[i].forEach(d=>h+=`<th class="dn">${esc(sn(d.n))}</th>`);h+='<th class="dn tt">Σ</th>'});
+ S.teams.forEach((t,i)=>{if(!C2[i].length&&!G.some(g=>tP(i,g)>0))return;C2[i].forEach(d=>h+=`<th class="dn">${esc(sn(d.n))}</th>`);h+='<th class="dn tt">Σ</th>'});
  h+='</tr></thead><tbody>';
- G.forEach(g=>{const f=fl(g);const yr=gy(g);const label=yr!==S.year?`${yr} · ${g.r}`:`${g.r}`;
-  h+=`<tr data-act="open" data-id="${g.id}"><th class="s1"><span class="rn">${label}</span>${esc(g.n)}${g.sp?'<i>спринт</i>':''}</th>`;
-  S.teams.forEach((t,i)=>{C[i].forEach(d=>h+=`<td>${f?(tm(d,g)==i&&part(g,d.id)?tot(g,d.id):''):'·'}</td>`);h+=`<td class="tt">${f?tP(i,g):'·'}</td>`});
+ G.forEach(g=>{const f=fl(g);
+  h+=`<tr data-act="open" data-id="${g.id}"><th class="s1"><span class="rn">${g.r}</span>${esc(g.n)}${g.sp?'<i>спринт</i>':''}</th>`;
+  S.teams.forEach((t,i)=>{if(!C2[i].length&&!G.some(x=>tP(i,x)>0))return;C2[i].forEach(d=>h+=`<td>${f?(tm(d,g)==i&&part(g,d.id)?tot(g,d.id):''):'·'}</td>`);h+=`<td class="tt">${f?tP(i,g):'·'}</td>`});
   h+='</tr>'});
  h+='</tbody><tfoot><tr><th class="s1">Всего очков</th>';
- S.teams.forEach((t,i)=>{C[i].forEach(d=>h+=`<td>${dTi(d,i)}</td>`);h+=`<td class="tt">${tT(i)}</td>`});
- return h+'</tr></tfoot></table></div><p class="mu" style="padding:0 4px">Нажмите на строку, чтобы открыть или изменить гран-при. Таблицу можно листать вбок.</p>'}
+ S.teams.forEach((t,i)=>{if(!C2[i].length&&!G.some(g=>tP(i,g)>0))return;C2[i].forEach(d=>h+=`<td>${dTi(d,i)}</td>`);h+=`<td class="tt">${tT(i)}</td>`});
+ return h+'</tr></tfoot></table></div><p class="mu" style="padding:0 4px">Сезон ${S.year}. Нажмите на строку, чтобы открыть гран-при. Таблицу можно листать вбок.</p>'}
 
 function standView(){
  const D=S.drv.map(d=>({n:d.n,c:S.teams[last(d)].c,sub:S.teams[last(d)].n,p:dT(d.id)})).sort((a,b)=>b.p-a.p);
@@ -135,11 +161,13 @@ function standView(){
  const hd=t=>`<h3 style="margin:0 0 6px;font:700 18px var(--hd)">${t}</h3>`;
  return`<div class="card">${hd('Командный зачёт')}${lst(T)}</div><div class="card">${hd('Личный зачёт')}${lst(D)}</div>`}
 
-function matesView(){const P={},K=(i,x,y)=>i+x.id+y.id;
- S.teams.forEach((t,i)=>{const c=S.drv.filter(d=>d.s.some(z=>z.t==i&&z.u==null));if(c.length>1)P[K(i,c[0],c[1])]={i,x:c[0],y:c[1],a:0,b:0}});
- S.gps.forEach(g=>S.teams.forEach((t,i)=>{const m=S.drv.filter(d=>tm(d,g)==i&&(!fl(g)||part(g,d.id)));if(m.length<2)return;const[x,y]=m,p=P[K(i,x,y)]||(P[K(i,x,y)]={i,x,y,a:0,b:0}),u=g.q.indexOf(x.id),v=g.q.indexOf(y.id);if(u<0&&v<0)return;if(v<0||(u>=0&&u<v))p.a++;else p.b++}));
- return Object.values(P).sort((p,q)=>p.i-q.i).map(p=>{const t=S.teams[p.i],s=p.a+p.b||1;
-  return`<div class="card"><div class="sc"><span style="color:var(--tx)">${esc(p.x.n)}</span>${p.a} : ${p.b}<span style="color:var(--tx)">${esc(p.y.n)}</span></div><div class="bar"><i style="width:${p.a/s*100}%;background:${t.c}"></i><i style="width:${p.b/s*100}%;background:${t.c};opacity:.35"></i></div><div class="mu" style="margin-top:6px">${esc(t.n)}: сравнений квалификации — ${p.a+p.b}</div></div>`}).join('')}
+function matesView(){const P={},K=(i,x,y)=>i+x.id+y.id;const Y=yearGps();
+ S.teams.forEach((t,i)=>{const c=S.drv.filter(d=>Y.some(g=>tm(d,g)===i));if(c.length>1){const pairs=[];for(let a=0;a<c.length;a++)for(let b=a+1;b<c.length;b++)pairs.push([c[a],c[b]]);pairs.forEach(([x,y])=>{P[K(i,x,y)]={i,x,y,a:0,b:0}})}});
+ Y.forEach(g=>S.teams.forEach((t,i)=>{const m=S.drv.filter(d=>tm(d,g)==i&&(!fl(g)||part(g,d.id)));if(m.length<2)return;for(let a=0;a<m.length;a++)for(let b=a+1;b<m.length;b++){const x=m[a],y=m[b],p=P[K(i,x,y)]||(P[K(i,x,y)]={i,x,y,a:0,b:0}),u=g.q.indexOf(x.id),v=g.q.indexOf(y.id);if(u<0&&v<0)return;if(v<0||(u>=0&&u<v))p.a++;else p.b++}}));
+ const rows=Object.values(P).filter(p=>p.a+p.b>0).sort((p,q)=>p.i-q.i);
+ if(!rows.length)return`<div class="em"><h2>Нет сравнений за ${S.year}</h2><p>Нужны результаты квалификации выбранного сезона.</p></div>`;
+ return rows.map(p=>{const t=S.teams[p.i],s=p.a+p.b||1;
+  return`<div class="card"><div class="sc"><span style="color:var(--tx)">${esc(p.x.n)}</span>${p.a} : ${p.b}<span style="color:var(--tx)">${esc(p.y.n)}</span></div><div class="bar"><i style="width:${p.a/s*100}%;background:${t.c}"></i><i style="width:${p.b/s*100}%;background:${t.c};opacity:.35"></i></div><div class="mu" style="margin-top:6px">${esc(t.n)} · ${S.year}: сравнений квалификации — ${p.a+p.b}</div></div>`}).join('')}
 
 const FLAG={australian:'🇦🇺',china:'🇨🇳',chinese:'🇨🇳',japan:'🇯🇵',japanese:'🇯🇵',bahrain:'🇧🇭',saudi:'🇸🇦','saudi arabian':'🇸🇦',miami:'🇺🇸',usa:'🇺🇸','united states':'🇺🇸',emilia:'🇮🇹',emiliaromagna:'🇮🇹',monaco:'🇲🇨',spanish:'🇪🇸',spain:'🇪🇸',canadian:'🇨🇦',canada:'🇨🇦',austrian:'🇦🇹',austria:'🇦🇹',british:'🇬🇧',britain:'🇬🇧',greatbritain:'🇬🇧',belgian:'🇧🇪',belgium:'🇧🇪',hungarian:'🇭🇺',hungary:'🇭🇺',dutch:'🇳🇱',netherlands:'🇳🇱',italian:'🇮🇹',italy:'🇮🇹',azerbaijan:'🇦🇿',singapore:'🇸🇬',mexican:'🇲🇽',mexico:'🇲🇽','sao paulo':'🇧🇷',brazilian:'🇧🇷',brazil:'🇧🇷',lasvegas:'🇺🇸','las vegas':'🇺🇸',qatar:'🇶🇦',abu:'🇦🇪',abudhabi:'🇦🇪','abu dhabi':'🇦🇪',portuguese:'🇵🇹',portugal:'🇵🇹',french:'🇫🇷',france:'🇫🇷',german:'🇩🇪',germany:'🇩🇪',russian:'🇷🇺',russia:'🇷🇺',turkish:'🇹🇷',turkey:'🇹🇷',styrian:'🇦🇹',styria:'🇦🇹',tuscany:'🇮🇹',eifel:'🇩🇪',sakhir:'🇧🇭','70th':'🇬🇧',anniversary:'🇬🇧'};
 function gpFlag(g){const n=norm(g.n||'').replace(/grand prix|gp/g,'').trim();for(const[k,f]of Object.entries(FLAG))if(n.includes(k))return f;return '🏁'}
@@ -181,11 +209,11 @@ function pointsChart(done,mode){
  <p class="chart-hint">Нажмите на этап (флаг), чтобы увидеть таблицу на этот момент · колесо — масштаб</p>`}
 
 function dashView(){
- const done=sortGps(S.gps.filter(fl));
- if(done.length<1)return`<div class="em"><h2>Нет результатов</h2><p>Загрузите или введите результаты этапов — график покажет эволюцию очков.</p></div>`;
+ const done=yearGps().filter(fl);
+ if(done.length<1)return`<div class="em"><h2>Нет результатов за ${S.year}</h2><p>Загрузите или введите результаты этапов сезона — график покажет эволюцию очков.</p></div>`;
  if(V.dashIdx==null||V.dashIdx>=done.length)V.dashIdx=done.length-1;
  const mode=V.dashMode||'d';
- const title=mode==='d'?'Эволюция очков пилотов':'Эволюция очков команд';
+ const title=mode==='d'?`Эволюция очков пилотов · ${S.year}`:`Эволюция очков команд · ${S.year}`;
  return`<div class="dash-card"><div class="seg" style="margin-bottom:10px"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>
  <div class="dash-title">${title}</div>
  ${pointsChart(done,mode)}</div>`}
@@ -217,18 +245,21 @@ function gpView(){
  ${rest.length?`<div class="card"><div class="mu" style="margin-bottom:8px">Нажмите, чтобы добавить на следующее место</div><div class="chips">${rest.map(d=>`<button data-act="add" data-id="${d.id}" style="opacity:${tm(d,g)<0?.5:1}"><span class="dot" style="background:${dc(d,g)}"></span>${esc(d.n)}</button>`).join('')}</div></div>`:''}</main>`}
 
 function gpsView(){
- if(!S.gps.length)return tableView();
- const A=sortGps(S.gps).sort((a,b)=>(!fl(a)-!fl(b))||(fl(a)?gkey(b)-gkey(a):gkey(a)-gkey(b)));
+ const Y=yearGps();
+ if(!Y.length)return`<div class="em"><h2>Нет гран-при за ${S.year}</h2><p>Переключите год стрелками в шапке или загрузите расписание.</p><button class="pr" data-act="new">Добавить гран-при</button> <button data-act="set">Настройки</button></div>`;
+ const A=[...Y].sort((a,b)=>(!fl(a)-!fl(b))||(fl(a)?b.r-a.r:a.r-b.r));
  return A.map(g=>{const f=fl(g),B=S.teams.map((t,i)=>({t,i,m:S.drv.filter(d=>tm(d,g)==i&&(!f||part(g,d.id))),p:tP(i,g)})).filter(b=>b.m.length);
   if(f)B.sort((a,b)=>b.p-a.p);
   const dr=d=>{const q=g.q.indexOf(d.id)+1,r=g.race.indexOf(d.id)+1,s=g.spr.indexOf(d.id)+1,x=[q?'квал. '+q:'',r?'гонка '+r:'',s?'спринт '+s:''].filter(Boolean).map(z=>`<i>${z}</i>`).join('');return`<div class="dr"><span>${esc(d.n)}</span><span class="mu">${x}</span><b>${tot(g,d.id)}</b></div>`};
-  const yr=gy(g);const sub=`этап ${g.r}${yr!==S.year?' · '+yr:''}${g.sp?', спринт':''}`;
+  const sub=`этап ${g.r}${g.sp?', спринт':''}`;
   const sc=predScore(g);const predBadge=sc?`<span class="badge ok">прогноз ${sc.score}</span>`:hasPred(g)?`<span class="badge">прогноз</span>`:'';
-  return`<div class="card gc" data-act="open" data-id="${g.id}"><div class="gh"><b>${esc(g.n)}${predBadge}</b><span class="mu">${sub}</span></div>${f?B.map(b=>`<div class="tb" style="--c:${b.t.c}"><div class="tn"><span>${esc(b.t.n)}</span><span class="mu">за этап</span><b>${b.p}</b><span class="mu">всего ${S.gps.reduce((a,x)=>a+(gkey(x)<=gkey(g)?tP(b.i,x):0),0)}</span></div>${b.m.map(dr).join('')}</div>`).join(''):`<p class="mu" style="margin:0">${hasPred(g)?'Прогноз сохранён. ':' '}Результатов пока нет. Нажмите, чтобы ввести.</p>`}</div>`}).join('')}
+  return`<div class="card gc" data-act="open" data-id="${g.id}"><div class="gh"><b>${esc(g.n)}${predBadge}</b><span class="mu">${sub}</span></div>${f?B.map(b=>`<div class="tb" style="--c:${b.t.c}"><div class="tn"><span>${esc(b.t.n)}</span><span class="mu">за этап</span><b>${b.p}</b><span class="mu">всего ${Y.reduce((a,x)=>a+(x.r<=g.r?tP(b.i,x):0),0)}</span></div>${b.m.map(dr).join('')}</div>`).join(''):`<p class="mu" style="margin:0">${hasPred(g)?'Прогноз сохранён. ':' '}Результатов пока нет. Нажмите, чтобы ввести.</p>`}</div>`}).join('')}
 
 function mainView(){
  const tabs=[['gps','Этапы'],['table','Таблица'],['stand','Зачёт'],['mates','Напарники'],['dash','Дашборд']];
- return`<header><h1>Гран-при<small>${S.year}</small></h1><div><button class="pr" data-act="new">+ Гран-при</button> <button data-act="set" aria-label="Настройки">⚙</button></div></header><main>${V.tab=='gps'?gpsView():V.tab=='table'?tableView():V.tab=='stand'?standView():V.tab=='mates'?matesView():dashView()}</main><nav>${tabs.map(t=>`<button class="${V.tab==t[0]?'on':''}" data-act="tab" data-v="${t[0]}">${t[1]}</button>`).join('')}</nav>`}
+ const ys=yearsList(),yi=ys.indexOf(S.year);
+ const prev=yi>0?ys[yi-1]:S.year-1,next=yi>=0&&yi<ys.length-1?ys[yi+1]:S.year+1;
+ return`<header><h1><span class="ynav"><button data-act="yprev" aria-label="Предыдущий год">‹</button><small>${S.year}</small><button data-act="ynext" aria-label="Следующий год">›</button></span> Гран-при</h1><div><button class="pr" data-act="new">+ Гран-при</button> <button data-act="set" aria-label="Настройки">⚙</button></div></header><main>${V.tab=='gps'?gpsView():V.tab=='table'?tableView():V.tab=='stand'?standView():V.tab=='mates'?matesView():dashView()}</main><nav>${tabs.map(t=>`<button class="${V.tab==t[0]?'on':''}" data-act="tab" data-v="${t[0]}">${t[1]}</button>`).join('')}</nav>`}
 
 function setView(){
  const dup=d=>S.drv.some(z=>z!==d&&norm(z.n.split(' ').pop())==norm(d.n.split(' ').pop()));
@@ -240,6 +271,10 @@ function setView(){
  <div class="mu" style="margin:0 4px 8px">Пилоты. У каждого пилота периоды: команда, с какого этапа, по какой (пусто — до конца сезона). Имена латиницей, фамилия последней — так работает автозагрузка. «Сменить команду» закрывает текущий период и добавляет новый со следующего этапа после последнего заполненного. Замена на один этап: у основного пилота закройте период до этапа перед пропуском и добавьте новый после него, а заменяющему задайте период на нужный этап.</div>
  ${S.drv.map(d=>`<div class="card"><div class="row"><input type="text" data-dn="${d.id}" value="${esc(d.n)}"><button class="dg n" data-act="delp" data-id="${d.id}">${V.dd==d.id?'Точно?':'Удалить'}</button></div>${dup(d)?'<div class="mu" style="color:#d33;margin-bottom:6px">Есть другой пилот с такой же фамилией. Автозагрузка кладёт результаты только одному из них. Оставьте одну запись и задайте ей несколько периодов.</div>':''}${d.s.map((z,j)=>`<div class="rr"><select data-sg="${d.id}:${j}:t">${op(z.t)}</select><input type="number" data-sg="${d.id}:${j}:f" value="${z.f}" aria-label="С этапа"><input type="number" data-sg="${d.id}:${j}:u" value="${z.u??''}" placeholder="по этап" aria-label="По этап"></div>`).join('')}<button data-act="addp" data-id="${d.id}">Сменить команду</button></div>`).join('')}
  <button class="pr" data-act="newd">+ Добавить пилота</button>
+ <div class="card gap"><div class="mu" style="margin-bottom:8px">Общие данные сайта (для всех посетителей)</div>
+ <button class="pr" data-act="publish" style="width:100%">Скачать data.json для публикации</button>
+ <button data-act="loadshared" style="width:100%;margin-top:6px">Загрузить общие данные с сайта</button>
+ <div class="mu" style="margin-top:6px">После загрузки результатов на компьютере нажмите «Скачать data.json», загрузите файл в корень репозитория GitHub (рядом с index.html) и сделайте commit. Тогда данные увидят все, в том числе с телефона.</div></div>
  <div class="card gap"><div class="mu" style="margin-bottom:8px">Резервная копия</div><div class="row"><button data-act="show">Показать копию</button><button data-act="restore">Восстановить из текста</button></div><textarea id="bk" placeholder="Скопируйте сюда текст копии, чтобы восстановить"></textarea></div></div>`}
 
 function bindChartZoom(){
@@ -304,6 +339,8 @@ async function loadGp(g){
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const d=b.dataset,a=d.act,g=V.gp&&gp(),i=+d.i;
  const L=g&&(V.mode=='r'?g.race:V.mode=='s'?g.spr:V.mode=='q'?g.q:(ensurePred(g).race));if(a!='del')V.del=false;if(a!='delp')V.dd=null;
  if(a=='tab')V.tab=d.v;else if(a=='open'){V.gp=d.id;V.mode='r'}else if(a=='back')V.gp=null;else if(a=='mode')V.mode=d.v;
+ else if(a=='yprev'){S.year=S.year-1;V.dashIdx=null;save()}
+ else if(a=='ynext'){S.year=S.year+1;V.dashIdx=null;save()}
  else if(a=='dashm'){V.dashMode=d.v;render();return}
  else if(a=='dashi'){V.dashIdx=+d.i;render();return}
  else if(a=='add')L.push(d.id);
@@ -316,6 +353,8 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
  else if(a=='delp'){if(V.dd==d.id){S.drv=S.drv.filter(z=>z.id!=d.id);S.gps.forEach(g=>['race','spr','q'].forEach(k=>g[k]=g[k].filter(x=>x!=d.id)));V.dd=null}else V.dd=d.id}
  else if(a=='set')V.set=true;else if(a=='x')V.set=false;
  else if(a=='sched')return sched();else if(a=='sync')return syncAll();else if(a=='hist')return loadHist();else if(a=='load')return loadGp(g);
+ else if(a=='publish')return downloadData();
+ else if(a=='loadshared')return loadShared();
  else if(a=='show'){$('#bk').value=JSON.stringify(S);return}
  else if(a=='restore'){try{const o=JSON.parse($('#bk').value);if(!o.teams||!o.gps)throw 0;S=mig(o);toast('Данные восстановлены')}catch(x){toast('Текст копии не распознан');return}}
  save();render()});
@@ -325,7 +364,7 @@ document.addEventListener('change',e=>{const x=e.target,d=x.dataset,g=V.gp&&gp()
  else if(d.t!=null)S.teams[d.t].n=x.value;
  else if(d.dn)S.drv.find(z=>z.id==d.dn).n=x.value;
  else if(d.sg){const[id,j,f]=d.sg.split(':'),z=S.drv.find(q=>q.id==id).s[j];z[f]=f=='t'?+x.value:x.value===''?null:+x.value}
- else if(d.year)S.year=+x.value;
+ else if(d.year){S.year=+x.value;V.dashIdx=null}
  save()});
-render();
+boot();
 </script></body></html>
