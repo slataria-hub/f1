@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Гран-при Ф1</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f2f3f5;--sf:#fff;--ln:#e0e3e8;--tx:#14171c;--mu:#6b7380;--ac:#e10600;--hd:'Barlow Semi Condensed','Arial Narrow',system-ui,sans-serif;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101216;--sf:#181b21;--ln:#272b34;--tx:#eceff4;--mu:#8a93a3}}
+:root[data-theme="dark"]{--bg:#101216;--sf:#181b21;--ln:#272b34;--tx:#eceff4;--mu:#8a93a3}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 8px}
+h1{font:700 26px var(--hd);margin:0;letter-spacing:.2px}h1 small{color:var(--mu);font-weight:500;margin-left:6px}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--sf);border:1px solid var(--ln);border-radius:10px;padding:9px 14px;cursor:pointer;min-height:40px}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+.pr{background:var(--ac);border-color:var(--ac);color:#fff}.dg{color:#d33}
+input[type=text],input[type=number],select{background:var(--bg);border:1px solid var(--ln);border-radius:8px;padding:8px 10px;min-height:40px;width:100%}
+main{padding:0 12px 96px}
+.tw{overflow-x:auto;background:var(--sf);border:1px solid var(--ln);border-radius:14px}
+table{border-collapse:collapse;width:max-content;min-width:100%}
+th,td{padding:9px 8px;text-align:center;border-bottom:1px solid var(--ln);white-space:nowrap}
+tbody tr[data-act]{cursor:pointer}tbody tr:hover td{background:rgba(127,127,127,.07)}
+.s1{position:sticky;left:0;background:var(--sf);text-align:left;z-index:1;padding-left:14px;min-width:150px;font-weight:600;border-right:1px solid var(--ln)}
+.s1 i{font-style:normal;font-size:11px;color:var(--ac);margin-left:4px}
+.th{font:700 14px var(--hd);border-bottom:3px solid var(--c);border-left:1px solid var(--ln)}
+.dn{font:500 12px var(--hd);color:var(--mu)}.tt{border-right:0}
+td.tt,th.tt{font-weight:700;background:rgba(127,127,127,.06)}
+td{font-variant-numeric:tabular-nums}
+tfoot td,tfoot th{border-bottom:0;font-weight:700;border-top:2px solid var(--ln)}
+.card{background:var(--sf);border:1px solid var(--ln);border-radius:14px;padding:14px;margin-bottom:12px}
+.li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--ln)}.li:last-child{border:0}
+.li b{font:700 17px var(--hd);min-width:28px}.li .nm{flex:1}.li .pt{width:64px;text-align:center}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.chips{display:flex;flex-wrap:wrap;gap:8px}.chips button{display:flex;align-items:center;gap:7px}
+.seg{display:flex;gap:6px;margin-bottom:12px}.seg button{flex:1}.seg .on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--ln);margin-top:8px}
+.sc{font:700 24px var(--hd);display:flex;justify-content:space-between;align-items:baseline}
+.sc span{font:500 14px system-ui;color:var(--mu)}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--sf);border-top:1px solid var(--ln);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));gap:6px}
+nav button{flex:1;border:0;background:none;font-weight:600;color:var(--mu)}nav .on{color:var(--tx);box-shadow:inset 0 -3px 0 var(--ac);border-radius:0}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:8px}.row>*{flex:1}.row .n{flex:none}
+.sheet{position:fixed;inset:0;background:var(--bg);overflow:auto;padding:calc(12px + env(safe-area-inset-top,0px)) 14px 40px;z-index:5}
+.rr{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px}
+.mu{color:var(--mu);font-size:13px}.gap{margin-top:14px}
+textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px solid var(--ln);border-radius:8px;padding:8px}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:9;max-width:90%;display:none}
+.em{text-align:center;padding:40px 16px}.em p{color:var(--mu)}
+.gc{cursor:pointer}.gh{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}.gh b{font:700 19px var(--hd)}
+.tb{border-left:4px solid var(--c);background:rgba(127,127,127,.06);border-radius:8px;padding:7px 10px;margin-top:8px}
+.tn{display:flex;gap:10px;align-items:baseline;font:700 15px var(--hd)}.tn b{font-size:18px}.tn span:first-child{flex:1}
+.dr{display:flex;align-items:baseline;gap:8px;padding:3px 0}.dr>span:first-child{flex:1}.dr b{min-width:26px;text-align:right}.dr .mu i{font-style:normal;margin-left:8px}
+</style></head><body>
+<div id="app"></div><div id="toast"></div>
+<script>
+const R=[25,18,15,12,10,8,6,4,2,1],SP=[8,7,6,5,4,3,2,1];
+const T0=[["McLaren","#ff8000","Lando Norris","Oscar Piastri"],["Ferrari","#e8002d","Charles Leclerc","Lewis Hamilton"],["Red Bull","#3671c6","Max Verstappen","Isack Hadjar"],["Mercedes","#27c7a8","George Russell","Kimi Antonelli"],["Aston Martin","#229971","Fernando Alonso","Lance Stroll"],["Alpine","#ff87bc","Pierre Gasly","Franco Colapinto"],["Williams","#3aa7e0","Alexander Albon","Carlos Sainz"],["Racing Bulls","#6692ff","Liam Lawson","Arvid Lindblad"],["Haas","#9aa0a6","Esteban Ocon","Oliver Bearman"],["Audi","#a05a2c","Nico Hulkenberg","Gabriel Bortoleto"],["Cadillac","#e0b100","Valtteri Bottas","Sergio Perez"]];
+function init(){let n=0;return{year:2026,gps:[],teams:T0.map(t=>({n:t[0],c:t[1]})),drv:T0.flatMap((t,i)=>[t[2],t[3]].map(x=>({id:'d'+n++,n:x,s:[{t:i,f:1,u:null}]})))}}
+function mig(o){if(!o.drv){o.drv=o.teams.flatMap((t,i)=>t.d.map(d=>({id:d.id,n:d.n,s:[{t:i,f:1,u:null}]})));o.teams.forEach(t=>delete t.d)}return o}
+let S;try{S=JSON.parse(localStorage.getItem('f1app'))}catch(e){}S=S&&S.teams?mig(S):init();
+const V={tab:'gps',gp:null,mode:'r',set:false,del:false};
+const save=()=>{try{localStorage.setItem('f1app',JSON.stringify(S))}catch(e){}};
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const drs=()=>S.drv,gp=()=>S.gps.find(g=>g.id==V.gp);
+const sn=n=>n.trim().split(' ').pop().slice(0,3).toUpperCase();
+const fl=g=>g.race.length||g.spr.length;
+const tm=(d,r)=>{const z=d.s.find(x=>r>=x.f&&(x.u==null||r<=x.u));return z?z.t:-1};
+const dc=(d,r)=>{const t=tm(d,r);return t<0?'#888':S.teams[t].c};
+const tn=(d,r)=>{const t=tm(d,r);return t<0?'вне команды':esc(S.teams[t].n)};
+const last=d=>d.s[d.s.length-1].t;
+function pts(g,k,id){const L=k=='r'?g.race:g.spr,T=k=='r'?R:SP,o=g.ov[k+id];if(o!=null)return o;const i=L.indexOf(id);return i>=0&&i<T.length?T[i]:0}
+const tot=(g,id)=>pts(g,'r',id)+pts(g,'s',id);
+const dT=id=>S.gps.reduce((a,g)=>a+tot(g,id),0);
+const dTi=(d,i)=>S.gps.reduce((a,g)=>a+(tm(d,g.r)==i?tot(g,d.id):0),0);
+const tP=(i,g)=>S.drv.reduce((a,d)=>a+(tm(d,g.r)==i?tot(g,d.id):0),0);
+const tT=i=>S.gps.reduce((a,g)=>a+tP(i,g),0);
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3500)}
+
+function tableView(){
+ if(!S.gps.length)return`<div class="em"><h2>Пока нет гран-при</h2><p>Добавьте первый вручную или загрузите расписание сезона.</p><button class="pr" data-act="new">Добавить гран-при</button> <button data-act="set">Загрузить расписание</button></div>`;
+ const C=S.teams.map((t,i)=>S.drv.filter(d=>d.s.some(z=>z.t==i)));
+ let h='<div class="tw"><table><thead><tr><th class="s1" rowspan="2">Гран-при</th>';
+ S.teams.forEach((t,i)=>h+=`<th colspan="${C[i].length+1}" class="th" style="--c:${t.c}">${esc(t.n)}</th>`);
+ h+='</tr><tr>';
+ S.teams.forEach((t,i)=>{C[i].forEach(d=>h+=`<th class="dn">${esc(sn(d.n))}</th>`);h+='<th class="dn tt">Σ</th>'});
+ h+='</tr></thead><tbody>';
+ S.gps.forEach(g=>{const f=fl(g);h+=`<tr data-act="open" data-id="${g.id}"><th class="s1">${esc(g.n)}${g.sp?'<i>спринт</i>':''}</th>`;
+  S.teams.forEach((t,i)=>{C[i].forEach(d=>h+=`<td>${f?(tm(d,g.r)==i?tot(g,d.id):''):'·'}</td>`);h+=`<td class="tt">${f?tP(i,g):'·'}</td>`});
+  h+='</tr>'});
+ h+='</tbody><tfoot><tr><th class="s1">Всего очков</th>';
+ S.teams.forEach((t,i)=>{C[i].forEach(d=>h+=`<td>${dTi(d,i)}</td>`);h+=`<td class="tt">${tT(i)}</td>`});
+ return h+'</tr></tfoot></table></div><p class="mu" style="padding:0 4px">Нажмите на строку, чтобы открыть или изменить гран-при. Таблицу можно листать вбок.</p>'}
+
+function standView(){
+ const D=S.drv.map(d=>({n:d.n,c:S.teams[last(d)].c,sub:S.teams[last(d)].n,p:dT(d.id)})).sort((a,b)=>b.p-a.p),T=S.teams.map((t,i)=>({n:t.n,c:t.c,p:tT(i)})).sort((a,b)=>b.p-a.p);
+ const lst=A=>A.map((x,i)=>`<div class="li"><b>${i+1}</b><span class="dot" style="background:${x.c}"></span><span class="nm">${esc(x.n)}${x.sub?`<div class="mu">${esc(x.sub)}</div>`:''}</span><b>${x.p}</b></div>`).join('');
+ const hd=t=>`<h3 style="margin:0 0 6px;font:700 18px var(--hd)">${t}</h3>`;
+ return`<div class="card">${hd('Командный зачёт')}${lst(T)}</div><div class="card">${hd('Личный зачёт')}${lst(D)}</div>`}
+
+function matesView(){const P={},K=(i,x,y)=>i+x.id+y.id;
+ S.teams.forEach((t,i)=>{const c=S.drv.filter(d=>d.s.some(z=>z.t==i&&z.u==null));if(c.length>1)P[K(i,c[0],c[1])]={i,x:c[0],y:c[1],a:0,b:0}});
+ S.gps.forEach(g=>S.teams.forEach((t,i)=>{const m=S.drv.filter(d=>tm(d,g.r)==i);if(m.length<2)return;const[x,y]=m,p=P[K(i,x,y)]||(P[K(i,x,y)]={i,x,y,a:0,b:0}),u=g.q.indexOf(x.id),v=g.q.indexOf(y.id);if(u<0&&v<0)return;if(v<0||(u>=0&&u<v))p.a++;else p.b++}));
+ return Object.values(P).sort((p,q)=>p.i-q.i).map(p=>{const t=S.teams[p.i],s=p.a+p.b||1;
+  return`<div class="card"><div class="sc"><span style="color:var(--tx)">${esc(p.x.n)}</span>${p.a} : ${p.b}<span style="color:var(--tx)">${esc(p.y.n)}</span></div><div class="bar"><i style="width:${p.a/s*100}%;background:${t.c}"></i><i style="width:${p.b/s*100}%;background:${t.c};opacity:.35"></i></div><div class="mu" style="margin-top:6px">${esc(t.n)}: сравнений квалификации — ${p.a+p.b}</div></div>`}).join('')}
+
+function gpView(){
+ const g=gp(),k=V.mode,L=k=='r'?g.race:k=='s'?g.spr:g.q,modes=[['r','Гонка'],...(g.sp?[['s','Спринт']]:[]),['q','Квалификация']];
+ const row=(id,i)=>{const d=drs().find(z=>z.id==id);return`<div class="li"><b>${i+1}</b><span class="dot" style="background:${dc(d,g.r)}"></span><span class="nm">${esc(d.n)}<div class="mu">${tn(d,g.r)}</div></span>${k=='q'?'':`<input class="pt" type="number" data-ov="${k+id}" value="${pts(g,k,id)}" aria-label="Очки">`}<button data-act="up" data-i="${i}" aria-label="Выше">↑</button><button data-act="rm" data-i="${i}" aria-label="Убрать">✕</button></div>`};
+ const rest=drs().filter(d=>!L.includes(d.id)).sort((a,b)=>(tm(b,g.r)>=0)-(tm(a,g.r)>=0));
+ return`<header><button data-act="back">‹ Назад</button><button data-act="load">Загрузить из базы F1</button></header><main>
+ <div class="card"><div class="row"><input type="text" data-f="n" value="${esc(g.n)}" aria-label="Название"><input class="n" style="width:84px" type="number" data-f="r" value="${g.r}" aria-label="Номер этапа"></div>
+ <div class="row"><label style="flex:1"><input type="checkbox" data-f="sp" ${g.sp?'checked':''}> Спринт-уикенд</label><button class="dg n" data-act="del">${V.del?'Точно удалить?':'Удалить'}</button></div></div>
+ <div class="seg">${modes.map(m=>`<button class="${m[0]==k?'on':''}" data-act="mode" data-v="${m[0]}">${m[1]}</button>`).join('')}</div>
+ <div class="card"><div class="mu">${k=='q'?'Порядок в квалификации':'Порядок финиша'}</div>${L.length?L.map(row).join(''):'<p class="mu">Нажимайте на пилотов ниже в порядке их места.</p>'}</div>
+ ${rest.length?`<div class="card"><div class="mu" style="margin-bottom:8px">Нажмите, чтобы добавить на следующее место</div><div class="chips">${rest.map(d=>`<button data-act="add" data-id="${d.id}" style="opacity:${tm(d,g.r)<0?.5:1}"><span class="dot" style="background:${dc(d,g.r)}"></span>${esc(d.n)}</button>`).join('')}</div></div>`:''}</main>`}
+
+function gpsView(){
+ if(!S.gps.length)return tableView();
+ const A=[...S.gps].sort((a,b)=>(!fl(a)-!fl(b))||(fl(a)?b.r-a.r:a.r-b.r));
+ return A.map(g=>{const f=fl(g),B=S.teams.map((t,i)=>({t,i,m:S.drv.filter(d=>tm(d,g.r)==i),p:tP(i,g)})).filter(b=>b.m.length);
+  if(f)B.sort((a,b)=>b.p-a.p);
+  const dr=d=>{const q=g.q.indexOf(d.id)+1,r=g.race.indexOf(d.id)+1,s=g.spr.indexOf(d.id)+1,x=[q?'квал. '+q:'',r?'гонка '+r:'',s?'спринт '+s:''].filter(Boolean).map(z=>`<i>${z}</i>`).join('');return`<div class="dr"><span>${esc(d.n)}</span><span class="mu">${x}</span><b>${tot(g,d.id)}</b></div>`};
+  return`<div class="card gc" data-act="open" data-id="${g.id}"><div class="gh"><b>${esc(g.n)}</b><span class="mu">этап ${g.r}${g.sp?', спринт':''}</span></div>${f?B.map(b=>`<div class="tb" style="--c:${b.t.c}"><div class="tn"><span>${esc(b.t.n)}</span><span class="mu">за этап</span><b>${b.p}</b><span class="mu">всего ${S.gps.reduce((a,x)=>a+(x.r<=g.r?tP(b.i,x):0),0)}</span></div>${b.m.map(dr).join('')}</div>`).join(''):'<p class="mu" style="margin:0">Результатов пока нет. Нажмите, чтобы ввести.</p>'}</div>`}).join('')}
+
+function mainView(){
+ const tabs=[['gps','Этапы'],['table','Таблица'],['stand','Зачёт'],['mates','Напарники']];
+ return`<header><h1>Гран-при<small>${S.year}</small></h1><div><button class="pr" data-act="new">+ Гран-при</button> <button data-act="set" aria-label="Настройки">⚙</button></div></header><main>${V.tab=='gps'?gpsView():V.tab=='table'?tableView():V.tab=='stand'?standView():matesView()}</main><nav>${tabs.map(t=>`<button class="${V.tab==t[0]?'on':''}" data-act="tab" data-v="${t[0]}">${t[1]}</button>`).join('')}</nav>`}
+
+function setView(){
+ const op=v=>S.teams.map((t,i)=>`<option value="${i}"${i==v?' selected':''}>${esc(t.n)}</option>`).join('');
+ return`<div class="sheet"><div class="row"><h2 style="margin:0;font:700 22px var(--hd)">Настройки</h2><button class="n" data-act="x">Готово</button></div>
+ <div class="card"><div class="mu">Сезон</div><div class="row"><input type="number" data-year="1" value="${S.year}"><button data-act="sched">Загрузить расписание</button></div></div>
+ <div class="card"><div class="mu" style="margin-bottom:8px">Названия команд</div>${S.teams.map((t,i)=>`<input type="text" style="margin-bottom:6px" data-t="${i}" value="${esc(t.n)}">`).join('')}</div>
+ <div class="mu" style="margin:0 4px 8px">Пилоты. У каждого пилота периоды: команда, с какого этапа, по какой (пусто — до конца сезона). Имена латиницей, фамилия последней — так работает автозагрузка. «Сменить команду» закрывает текущий период и добавляет новый со следующего этапа после последнего заполненного. Замена на один этап: у основного пилота закройте период до этапа перед пропуском и добавьте новый после него, а заменяющему задайте период на нужный этап.</div>
+ ${S.drv.map(d=>`<div class="card"><div class="row"><input type="text" data-dn="${d.id}" value="${esc(d.n)}"><button class="dg n" data-act="delp" data-id="${d.id}">${V.dd==d.id?'Точно?':'Удалить'}</button></div>${d.s.map((z,j)=>`<div class="rr"><select data-sg="${d.id}:${j}:t">${op(z.t)}</select><input type="number" data-sg="${d.id}:${j}:f" value="${z.f}" aria-label="С этапа"><input type="number" data-sg="${d.id}:${j}:u" value="${z.u??''}" placeholder="по этап" aria-label="По этап"></div>`).join('')}<button data-act="addp" data-id="${d.id}">Сменить команду</button></div>`).join('')}
+ <button class="pr" data-act="newd">+ Добавить пилота</button>
+ <div class="card gap"><div class="mu" style="margin-bottom:8px">Резервная копия</div><div class="row"><button data-act="show">Показать копию</button><button data-act="restore">Восстановить из текста</button></div><textarea id="bk" placeholder="Скопируйте сюда текст копии, чтобы восстановить"></textarea></div></div>`}
+
+function render(){const o=$('.sheet'),st=o?o.scrollTop:0;$('#app').innerHTML=(V.gp?gpView():mainView())+(V.set?setView():'');const n=$('.sheet');if(n)n.scrollTop=st}
+
+const norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const API='https://api.jolpi.ca/ergast/f1/';
+async function jget(u){const r=await fetch(u);if(!r.ok)throw new Error(r.status);return(await r.json()).MRData.RaceTable}
+async function sched(){
+ try{const T=await jget(API+S.year+'.json');let n=0;
+  T.Races.forEach(r=>{if(S.gps.some(g=>g.r==+r.round))return;S.gps.push({id:'g'+r.round+Date.now(),n:r.raceName,r:+r.round,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{}});n++});
+  S.gps.sort((a,b)=>a.r-b.r);save();V.set=false;render();toast('Добавлено гран-при: '+n)}
+ catch(e){toast('Не удалось связаться с базой F1. В предпросмотре это заблокировано; на GitHub Pages должно работать.')}}
+async function loadGp(g){
+ try{const b=API+S.year+'/'+g.r+'/',m=a=>a.map(x=>drs().find(d=>norm(d.n.split(' ').pop())==norm(x.Driver.familyName))?.id).filter(Boolean);
+  const F=async p=>(await jget(b+p+'.json')).Races[0];
+  const[a,q,s]=await Promise.all([F('results'),F('qualifying'),F('sprint').catch(()=>null)]);
+  if(!a&&!q){toast('Для этого этапа данных пока нет');return}
+  const ra=a?.Results||[];g.race=m(ra);g.q=m(q?.QualifyingResults||[]);g.spr=m(s?.SprintResults||[]);if(g.spr.length)g.sp=true;
+  save();render();toast(g.race.length<ra.length?'Часть пилотов не распознана — проверьте имена в настройках':'Результаты загружены')}
+ catch(e){toast('Не удалось загрузить. Проверьте номер этапа и сезон; в предпросмотре сеть заблокирована.')}}
+
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const d=b.dataset,a=d.act,g=V.gp&&gp(),i=+d.i;
+ const L=g&&(V.mode=='r'?g.race:V.mode=='s'?g.spr:g.q);if(a!='del')V.del=false;if(a!='delp')V.dd=null;
+ if(a=='tab')V.tab=d.v;else if(a=='open'){V.gp=d.id;V.mode='r'}else if(a=='back')V.gp=null;else if(a=='mode')V.mode=d.v;
+ else if(a=='add')L.push(d.id);
+ else if(a=='rm'){delete g.ov[V.mode+L[i]];L.splice(i,1)}
+ else if(a=='up'){if(i>0)[L[i-1],L[i]]=[L[i],L[i-1]]}
+ else if(a=='new'){const n={id:'g'+Date.now(),n:'Новый гран-при',r:S.gps.length+1,sp:false,race:[],spr:[],q:[],ov:{}};S.gps.push(n);V.gp=n.id;V.mode='r'}
+ else if(a=='del'){if(V.del){S.gps=S.gps.filter(x=>x!==g);V.gp=null;V.del=false}else V.del=true}
+ else if(a=='addp'){const v=S.drv.find(z=>z.id==d.id),l=v.s[v.s.length-1],f=Math.max(0,...S.gps.filter(fl).map(g=>g.r))+1;if(l.u==null&&f-1>=l.f)l.u=f-1;v.s.push({t:l.t,f,u:null})}
+ else if(a=='newd'){const f=Math.max(0,...S.gps.filter(fl).map(g=>g.r))+1;S.drv.push({id:'d'+Date.now(),n:'Новый пилот',s:[{t:0,f,u:null}]})}
+ else if(a=='delp'){if(V.dd==d.id){S.drv=S.drv.filter(z=>z.id!=d.id);S.gps.forEach(g=>['race','spr','q'].forEach(k=>g[k]=g[k].filter(x=>x!=d.id)));V.dd=null}else V.dd=d.id}
+ else if(a=='set')V.set=true;else if(a=='x')V.set=false;
+ else if(a=='sched')return sched();else if(a=='load')return loadGp(g);
+ else if(a=='show'){$('#bk').value=JSON.stringify(S);return}
+ else if(a=='restore'){try{const o=JSON.parse($('#bk').value);if(!o.teams||!o.gps)throw 0;S=mig(o);toast('Данные восстановлены')}catch(x){toast('Текст копии не распознан');return}}
+ save();render()});
+document.addEventListener('change',e=>{const x=e.target,d=x.dataset,g=V.gp&&gp();
+ if(d.f){g[d.f]=x.type=='checkbox'?x.checked:x.type=='number'?+x.value:x.value;if(d.f=='sp'){if(!x.checked){g.spr=[];if(V.mode=='s')V.mode='r'}save();render();return}}
+ else if(d.ov){x.value===''?delete g.ov[d.ov]:g.ov[d.ov]=+x.value}
+ else if(d.t!=null)S.teams[d.t].n=x.value;
+ else if(d.dn)S.drv.find(z=>z.id==d.dn).n=x.value;
+ else if(d.sg){const[id,j,f]=d.sg.split(':'),z=S.drv.find(q=>q.id==id).s[j];z[f]=f=='t'?+x.value:x.value===''?null:+x.value}
+ else if(d.year)S.year=+x.value;
+ save()});
+render();
+</script></body></html>
