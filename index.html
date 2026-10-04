@@ -357,13 +357,33 @@ function rankingChart(done,mode){
  const cursor=`<line x1="${cx}" y1="${padT}" x2="${cx}" y2="${H-padB}" stroke="#3d4654" stroke-width="1.25"/>`;
  let hits='';done.forEach((g,i)=>{const hx=x(i),hw=n>1?(W-padL-padR)/(n-1)/2:48;hits+=`<rect x="${hx-hw}" y="${padT}" width="${hw*2}" height="${H-padT-padB}" fill="transparent" data-act="dashi" data-i="${i}" style="cursor:pointer"/>`});
  const gAt=done[idx],mark=gpMark(gAt);
- const stand=entities.map(e=>({n:e.label,c:e.c,p:e.ranks[idx],id:e.id})).sort((a,b)=>a.p-b.p);
- const rows=stand.map(s=>`<div class="row" style="${focus===s.id?'opacity:1':'opacity:'+(focus?'.45':'1')}"><b>${s.p}</b><span class="nm" style="color:${s.c}" title="${esc(s.n)}">${esc(s.n)}</span><span class="pt"></span></div>`).join('');
+ // панель: позиция на этом гран-при + очки за этап
+ const byId={};entities.forEach(e=>{byId[e.id]=e});
+ let raceRows=[];
+ if(isDrv&&(gAt.race||[]).length){
+  raceRows=gAt.race.map((id,i)=>{
+   const e=byId[id]||{id,label:surname((S.drv.find(d=>d.id===id)||{n:'?'}).n),c:'#8b95a5',ranks:[]};
+   return{pos:i+1,n:e.label,c:e.c,id,pts:tot(gAt,id)};
+  });
+  entities.forEach(e=>{
+   if(raceRows.some(r=>r.id===e.id))return;
+   if(!part(gAt,e.id))return;
+   raceRows.push({pos:'—',n:e.label,c:e.c,id:e.id,pts:tot(gAt,e.id)});
+  });
+ }else if(!isDrv){
+  raceRows=entities.map(e=>({n:e.label,c:e.c,id:e.id,pts:tP(e.ti,gAt),champ:e.ranks[idx]})).sort((a,b)=>b.pts-a.pts||a.champ-b.champ);
+  raceRows.forEach((r,i)=>{r.pos=i+1});
+ }else{
+  raceRows=entities.map(e=>({pos:e.ranks[idx],n:e.label,c:e.c,id:e.id,pts:tot(gAt,e.id)})).sort((a,b)=>a.pos-b.pos);
+ }
+ const rows=raceRows.map(s=>`<div class="row" style="${focus===s.id?'opacity:1':'opacity:'+(focus?'.45':'1')}"><b>${s.pos}</b><span class="nm" style="color:${s.c}" title="${esc(s.n)}">${esc(s.n)}</span><span class="pt">${s.pts}</span></div>`).join('');
  let tip='';
  const foc=focus?entities.find(e=>e.id===focus):null;
  if(foc){
   const rk=foc.ranks[idx],py=y(rk),top=Math.max(8,Math.min(py-28,H-70));
-  tip=`<div class="tip-pop" style="left:${(cx/W)*100}%;top:${(top/H)*100}%;transform:translate(${cx<W*0.55?'8px':'-108%'},-20%)"><div class="thd"><span>${mark} ${esc(gpShort(gAt))}</span><span class="rn">R${gAt.r}</span></div><div class="trow"><span class="who" style="color:${foc.c}">${esc(foc.label)}</span><span class="pos">${ordPos(rk)}</span></div></div>`;
+  const rp=isDrv?(gAt.race||[]).indexOf(foc.id)+1:0;
+  const posTxt=rp?rp+'-е в гонке':'в зачёте '+rk;
+  tip=`<div class="tip-pop" style="left:${(cx/W)*100}%;top:${(top/H)*100}%;transform:translate(${cx<W*0.55?'8px':'-108%'},-20%)"><div class="thd"><span>${mark} ${esc(gpShort(gAt))}</span><span class="rn">R${gAt.r}</span></div><div class="trow"><span class="who" style="color:${foc.c}">${esc(foc.label)}</span><span class="pos">${posTxt}</span></div></div>`;
  }
  return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" id="chartSvg">${grid}${hits}${paths}${cursor}${labels}</svg>${tip}</div>${flagsRow(done,idx,padL,padR,W)}</div>${standPanel(mark,gpShort(gAt),gAt.r,rows)}</div>`}
 
