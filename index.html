@@ -69,6 +69,11 @@ textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px 
 .stand-pop .row b{min-width:18px;color:#6b7585;font-weight:500;font-size:11.5px}
 .stand-pop .row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .stand-pop .row .pt{font-weight:600;min-width:30px;text-align:right;color:#e8edf5}
+.tip-pop{position:absolute;min-width:140px;background:rgba(15,20,28,.95);border:1px solid #2a3340;border-radius:10px;padding:10px 12px;font-size:12.5px;backdrop-filter:blur(10px);z-index:3;box-shadow:0 8px 24px rgba(0,0,0,.4);pointer-events:none;color:#e8edf5}
+.tip-pop .thd{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px;font-weight:700;font-size:13px}
+.tip-pop .thd .rn{color:#8b95a5;font-weight:500;font-size:11.5px}
+.tip-pop .trow{display:flex;justify-content:space-between;align-items:baseline;gap:14px}
+.tip-pop .trow .who{font-weight:600}.tip-pop .trow .pos{color:#8b95a5;font-weight:500}
 .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:rgba(127,127,127,.12);color:var(--mu);margin-left:6px}
 .badge.ok{background:rgba(34,160,90,.15);color:#1a9a52}.badge.warn{background:rgba(225,6,0,.1);color:var(--ac)}
 .cmp{display:grid;grid-template-columns:28px 1fr auto auto;gap:6px 10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln);font-variant-numeric:tabular-nums}
@@ -82,7 +87,7 @@ const T0=[["McLaren","#ff8000","Lando Norris","Oscar Piastri"],["Ferrari","#e800
 function init(){let n=0;return{year:2026,gps:[],teams:T0.map(t=>({n:t[0],c:t[1]})),drv:T0.flatMap((t,i)=>[t[2],t[3]].map(x=>({id:'d'+n++,n:x,s:[{t:i,f:1,u:null}]})))}}
 function mig(o){if(!o.drv){o.drv=o.teams.flatMap((t,i)=>t.d.map(d=>({id:d.id,n:d.n,s:[{t:i,f:1,u:null}]})));o.teams.forEach(t=>delete t.d)}if(o.gps)o.gps.forEach(g=>{if(g.y==null)g.y=o.year||2025});return o}
 let S=init();
-const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'d',dashIdx:null,booting:true};
+const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'d',dashKind:'pts',dashIdx:null,dashFocus:null,booting:true};
 const save=()=>{try{localStorage.setItem('f1app',JSON.stringify(S))}catch(e){}};
 const SHARED='./data.json';
 async function boot(){
@@ -262,15 +267,101 @@ function pointsChart(done,mode){
  const pop=`<div class="stand-pop" style="${popStyle}"><div class="hd"><span>${gpFlag(gAt)} ${esc(gpShort(gAt))}</span><span class="rn">R${gAt.r}</span></div>${stand.map((s,i)=>`<div class="row"><b>${i+1}</b><span class="nm" style="color:${s.c}">${esc(s.n)}</span><span class="pt">${s.p}</span></div>`).join('')}</div>`;
  return`<div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${paths}${dots}${flags}${cursor}${hits}</svg>${pop}</div>`}
 
+function smoothPath(pts){
+ if(pts.length<2)return pts.length?`M${pts[0][0]},${pts[0][1]}`:'';
+ let d=`M${pts[0][0]},${pts[0][1]}`;
+ for(let i=0;i<pts.length-1;i++){
+  const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||p2;
+  const c1x=p1[0]+(p2[0]-p0[0])/6,c1y=p1[1]+(p2[1]-p0[1])/6;
+  const c2x=p2[0]-(p3[0]-p1[0])/6,c2y=p2[1]-(p3[1]-p1[1])/6;
+  d+=` C${c1x},${c1y} ${c2x},${c2y} ${p2[0]},${p2[1]}`;
+ }
+ return d;
+}
+function ordPos(n){return n+'-е место'}
+
+function rankingChart(done,mode){
+ const n=done.length;if(!n)return'<p class="mu">Нет данных</p>';
+ const isDrv=mode==='d';
+ // накопленные очки → место после каждого этапа
+ const entities=[];
+ if(isDrv){
+  S.drv.forEach(d=>{
+   if(!done.some(g=>part(g,d.id)))return;
+   let col='#8b95a5';
+   for(let i=done.length-1;i>=0;i--){const t=tm(d,done[i]);if(t>=0&&part(done[i],d.id)){col=S.teams[t]?S.teams[t].c:col;break}}
+   entities.push({id:d.id,n:d.n,code:sn(d.n),label:surname(d.n),c:col,cum:[]});
+  });
+ }else{
+  activeTeams().forEach(({i,n,c})=>{entities.push({id:'t'+i,n,code:n.slice(0,3).toUpperCase(),label:n,c,cum:[],ti:i})});
+ }
+ // cumulative points per race
+ const ptsMat=entities.map(()=>[]);
+ done.forEach((g,gi)=>{
+  entities.forEach((e,ei)=>{
+   const prev=gi?ptsMat[ei][gi-1]:0;
+   const add=isDrv?tot(g,e.id):tP(e.ti,g);
+   ptsMat[ei].push(prev+add);
+  });
+ });
+ // ranks (1 = best). tie-break by entity order
+ const ranks=entities.map(()=>[]);
+ done.forEach((g,gi)=>{
+  const order=entities.map((e,ei)=>({ei,p:ptsMat[ei][gi]})).sort((a,b)=>b.p-a.p||a.ei-b.ei);
+  order.forEach((o,pos)=>ranks[o.ei].push(pos+1));
+ });
+ entities.forEach((e,ei)=>{e.ranks=ranks[ei]});
+ const maxR=Math.max(entities.length,1);
+ const W=Math.max(800,n*38+120),H=Math.max(420,maxR*18+80),padL=36,padR=52,padT=14,padB=40;
+ const x=i=>padL+(n===1?0:(W-padL-padR)*i/(n-1));
+ const y=r=>padT+(H-padT-padB)*((r-1)/Math.max(maxR-1,1));
+ let grid='';
+ for(let r=1;r<=maxR;r++)grid+=`<line x1="${padL}" y1="${y(r)}" x2="${W-padR}" y2="${y(r)}" stroke="#1c2430" stroke-width="1"/><text x="${padL-8}" y="${y(r)+4}" text-anchor="end" font-size="10" fill="#6b7585" font-family="system-ui,sans-serif">${r}</text>`;
+ const focus=V.dashFocus;
+ let paths='',labels='';
+ entities.forEach(e=>{
+  const pts=e.ranks.map((r,i)=>[x(i),y(r)]);
+  const on=!focus||focus===e.id;
+  const sw=focus===e.id?2.6:1.6;
+  const op=focus&&focus!==e.id?0.22:0.95;
+  paths+=`<path d="${smoothPath(pts)}" fill="none" stroke="${e.c}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round" opacity="${op}" data-act="dashf" data-id="${e.id}" style="cursor:pointer"/>`;
+  const lastY=y(e.ranks[n-1]);
+  labels+=`<text x="${W-padR+6}" y="${lastY+4}" font-size="11" font-weight="600" fill="${e.c}" opacity="${op}" font-family="system-ui,sans-serif" data-act="dashf" data-id="${e.id}" style="cursor:pointer">${esc(e.code)}</text>`;
+ });
+ let flags='';done.forEach((g,i)=>{flags+=`<text x="${x(i)}" y="${H-12}" text-anchor="middle" font-size="14">${gpFlag(g)}</text>`});
+ const idx=V.dashIdx!=null?Math.min(V.dashIdx,n-1):n-1;
+ const cx=x(idx);
+ const cursor=`<line x1="${cx}" y1="${padT}" x2="${cx}" y2="${H-padB}" stroke="#3d4654" stroke-width="1.25"/>`;
+ let hits='';done.forEach((g,i)=>{const hx=x(i),hw=n>1?(W-padL-padR)/(n-1)/2:48;hits+=`<rect x="${hx-hw}" y="${padT}" width="${hw*2}" height="${H-padT-padB}" fill="transparent" data-act="dashi" data-i="${i}" style="cursor:pointer"/>`});
+ // tooltip for focused series at selected race
+ let tip='';
+ const foc=focus?entities.find(e=>e.id===focus):null;
+ if(foc){
+  const rk=foc.ranks[idx];
+  const py=y(rk);
+  // позиция тултипа рядом с точкой
+  const left=cx<W*0.55?cx+12:cx-160;
+  const top=Math.max(8,Math.min(py-28,H-70));
+  // convert svg coords roughly via percent of chart box — use absolute in SVG overlay as HTML with % from idx
+  tip=`<div class="tip-pop" style="left:${(cx/W)*100}%;top:${(top/H)*100}%;transform:translate(${cx<W*0.55?'8px':'-108%'},-20%)"><div class="thd"><span>${gpFlag(done[idx])} ${esc(gpShort(done[idx]))}</span><span class="rn">R${done[idx].r}</span></div><div class="trow"><span class="who" style="color:${foc.c}">${esc(foc.label)}</span><span class="pos">${ordPos(rk)}</span></div></div>`;
+ }
+ return`<div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${hits}${paths}${flags}${cursor}${labels}</svg>${tip}</div>`}
+
 function dashView(){
  const done=yearGps().filter(fl);
  if(done.length<1)return`<div class="em"><h2>Нет результатов за ${S.year}</h2><p>Загрузите или введите результаты этапов сезона.</p></div>`;
  if(V.dashIdx==null||V.dashIdx>=done.length)V.dashIdx=done.length-1;
- const mode=V.dashMode||'d';
- const title=mode==='d'?'Эволюция очков пилотов':'Эволюция очков команд';
- return`<div class="dash-card"><div class="seg" style="margin-bottom:12px"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>
+ const mode=V.dashMode||'d',kind=V.dashKind||'pts';
+ const title=kind==='rank'
+  ?(mode==='d'?'Эволюция мест пилотов':'Эволюция мест команд')
+  :(mode==='d'?'Эволюция очков пилотов':'Эволюция очков команд');
+ return`<div class="dash-card">
+ <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+  <div class="seg" style="margin:0;flex:1;min-width:160px"><button class="${kind==='pts'?'on':''}" data-act="dashk" data-v="pts">Очки</button><button class="${kind==='rank'?'on':''}" data-act="dashk" data-v="rank">Места</button></div>
+  <div class="seg" style="margin:0;flex:1;min-width:160px"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>
+ </div>
  <div class="dash-title">${title}</div>
- ${pointsChart(done,mode)}</div>`}
+ ${kind==='rank'?rankingChart(done,mode):pointsChart(done,mode)}</div>`}
 
 function gpView(){
  const g=gp(),k=V.mode;
@@ -527,8 +618,10 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
  if(a=='tab')V.tab=d.v;else if(a=='open'){V.gp=d.id;V.mode='r'}else if(a=='back')V.gp=null;else if(a=='mode')V.mode=d.v;
  else if(a=='yprev'){S.year=S.year-1;V.dashIdx=null;save()}
  else if(a=='ynext'){S.year=S.year+1;V.dashIdx=null;save()}
- else if(a=='dashm'){V.dashMode=d.v;render();return}
+ else if(a=='dashm'){V.dashMode=d.v;V.dashFocus=null;render();return}
+ else if(a=='dashk'){V.dashKind=d.v;V.dashFocus=null;render();return}
  else if(a=='dashi'){V.dashIdx=+d.i;render();return}
+ else if(a=='dashf'){V.dashFocus=V.dashFocus===d.id?null:d.id;render();return}
  else if(a=='add')L.push(d.id);
  else if(a=='rm'){delete g.ov[V.mode+L[i]];L.splice(i,1)}
  else if(a=='up'){if(i>0)[L[i-1],L[i]]=[L[i],L[i-1]]}
