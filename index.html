@@ -60,23 +60,26 @@ textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px 
 .dash-card{background:#0b0f14;border:1px solid #1c2330;border-radius:16px;padding:18px 16px 14px;margin-bottom:12px;color:#e8edf5}
 .dash-card .seg{max-width:220px}.dash-card .seg button{background:#141a22;border-color:#2a3340;color:#8b95a5}.dash-card .seg .on{background:#e8edf5;color:#0b0f14;border-color:#e8edf5}
 .dash-title{font:700 20px var(--hd);margin:0 0 14px;color:#f0f4fa;letter-spacing:.2px}
+.dash-layout{display:flex;gap:12px;align-items:stretch;width:100%}
+.dash-main{flex:1;min-width:0;display:flex;flex-direction:column}
 .chart-box{position:relative;width:100%;height:min(62vh,560px);min-height:360px;user-select:none}
 .chart-box svg{display:block;width:100%;height:100%}
-.stand-pop{position:absolute;top:12px;width:196px;max-height:calc(100% - 24px);overflow:auto;background:rgba(15,20,28,.94);border:1px solid #2a3340;border-radius:12px;padding:12px 12px 10px;font-size:12.5px;backdrop-filter:blur(10px);z-index:2;box-shadow:0 8px 28px rgba(0,0,0,.45)}
-.stand-pop .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-weight:700;font-size:13.5px;color:#f0f4fa}
+.stand-pop{position:relative;flex:none;width:200px;max-height:min(62vh,560px);overflow:auto;background:rgba(15,20,28,.96);border:1px solid #2a3340;border-radius:12px;padding:12px 12px 10px;font-size:12.5px;z-index:2;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+.stand-pop .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-weight:700;font-size:13.5px;color:#f0f4fa;position:sticky;top:0;background:rgba(15,20,28,.98);padding-bottom:6px}
 .stand-pop .hd .rn{color:#8b95a5;font-weight:500;font-size:11.5px}
 .stand-pop .row{display:flex;align-items:center;gap:7px;padding:2.5px 0;font-variant-numeric:tabular-nums}
 .stand-pop .row b{min-width:18px;color:#6b7585;font-weight:500;font-size:11.5px}
 .stand-pop .row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .stand-pop .row .pt{font-weight:600;min-width:30px;text-align:right;color:#e8edf5}
-.tip-pop{position:absolute;min-width:140px;background:rgba(15,20,28,.95);border:1px solid #2a3340;border-radius:10px;padding:10px 12px;font-size:12.5px;backdrop-filter:blur(10px);z-index:3;box-shadow:0 8px 24px rgba(0,0,0,.4);pointer-events:none;color:#e8edf5}
+.tip-pop{position:absolute;min-width:140px;background:rgba(15,20,28,.95);border:1px solid #2a3340;border-radius:10px;padding:10px 12px;font-size:12.5px;z-index:3;box-shadow:0 8px 24px rgba(0,0,0,.4);pointer-events:none;color:#e8edf5}
 .tip-pop .thd{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px;font-weight:700;font-size:13px}
 .tip-pop .thd .rn{color:#8b95a5;font-weight:500;font-size:11.5px}
 .tip-pop .trow{display:flex;justify-content:space-between;align-items:baseline;gap:14px}
 .tip-pop .trow .who{font-weight:600}.tip-pop .trow .pos{color:#8b95a5;font-weight:500}
-.flag-axis{display:flex;justify-content:space-between;align-items:center;margin-top:2px;width:100%;box-sizing:border-box}
+.flag-axis{display:flex;justify-content:space-between;align-items:center;margin-top:4px;width:100%;box-sizing:border-box}
 .flag-btn{flex:1;min-width:0;border:0;background:none;color:#c8d0dc;font-size:15px;line-height:1.2;padding:6px 0;cursor:pointer;opacity:.75;border-radius:6px}
 .flag-btn:hover{opacity:1;background:rgba(255,255,255,.06)}.flag-btn.on{opacity:1;background:rgba(255,255,255,.1);box-shadow:inset 0 -2px 0 var(--ac)}
+@media(max-width:700px){.dash-layout{flex-direction:column}.stand-pop{width:100%;max-height:220px}}
 .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:rgba(127,127,127,.12);color:var(--mu);margin-left:6px}
 .badge.ok{background:rgba(34,160,90,.15);color:#1a9a52}.badge.warn{background:rgba(225,6,0,.1);color:var(--ac)}
 .cmp{display:grid;grid-template-columns:28px 1fr auto auto;gap:6px 10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln);font-variant-numeric:tabular-nums}
@@ -238,12 +241,13 @@ function gpFlag(g){const n=norm(g.n||'').replace(/grand prix|\bgp\b/g,' ').repla
 function gpShort(g){const n=(g.n||'').replace(/\s*Grand Prix\s*/i,'').trim();return n||('R'+g.r)}
 function gpMark(g){return gpFlag(g)||('R'+g.r)}
 function flagsRow(done,idx,padL,padR,W){
- // HTML-ось с флагами — эмодзи в SVG часто не видны / «ломаются»
- const n=done.length,span=W-padL-padR;
  return`<div class="flag-axis" style="padding-left:${(padL/W)*100}%;padding-right:${(padR/W)*100}%">${done.map((g,i)=>{
   const on=i===idx?' on':'';
   return`<button type="button" class="flag-btn${on}" data-act="dashi" data-i="${i}" title="${esc(gpShort(g))}">${gpMark(g)}</button>`;
  }).join('')}</div>`;
+}
+function standPanel(titleMark,titleName,round,rows){
+ return`<div class="stand-pop"><div class="hd"><span>${titleMark} ${esc(titleName)}</span><span class="rn">R${round}</span></div>${rows}</div>`;
 }
 
 function surname(n){
@@ -284,12 +288,9 @@ function pointsChart(done,mode){
  const cursor=`<line x1="${cx}" y1="${padT}" x2="${cx}" y2="${H-padB}" stroke="#3d4654" stroke-width="1.25"/>`;
  let hits='';done.forEach((g,i)=>{const hx=x(i),hw=n>1?(W-padL-padR)/(n-1)/2:48;hits+=`<rect x="${hx-hw}" y="${padT}" width="${hw*2}" height="${H-padT-padB}" fill="transparent" data-act="dashi" data-i="${i}" style="cursor:pointer"/>`});
  const stand=series.map(s=>({n:s.label,c:s.c,p:s.pts[idx]})).sort((a,b)=>b.p-a.p);
- const gAt=done[idx];
- const popSide=idx>n*0.55?'left':'right';
- const popStyle=popSide==='left'?'left:12px;right:auto':'right:12px;left:auto';
- const mark=gpMark(gAt);
- const pop=`<div class="stand-pop" style="${popStyle}"><div class="hd"><span>${mark} ${esc(gpShort(gAt))}</span><span class="rn">R${gAt.r}</span></div>${stand.map((s,i)=>`<div class="row"><b>${i+1}</b><span class="nm" style="color:${s.c}">${esc(s.n)}</span><span class="pt">${s.p}</span></div>`).join('')}</div>`;
- return`<div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${hits}${paths}${dots}${cursor}</svg>${pop}</div>${flagsRow(done,idx,padL,padR,W)}`}
+ const gAt=done[idx],mark=gpMark(gAt);
+ const rows=stand.map((s,i)=>`<div class="row"><b>${i+1}</b><span class="nm" style="color:${s.c}">${esc(s.n)}</span><span class="pt">${s.p}</span></div>`).join('');
+ return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${hits}${paths}${dots}${cursor}</svg></div>${flagsRow(done,idx,padL,padR,W)}</div>${standPanel(mark,gpShort(gAt),gAt.r,rows)}</div>`}
 
 function smoothPath(pts){
  if(pts.length<2)return pts.length?`M${pts[0][0]},${pts[0][1]}`:'';
@@ -356,19 +357,15 @@ function rankingChart(done,mode){
  const cursor=`<line x1="${cx}" y1="${padT}" x2="${cx}" y2="${H-padB}" stroke="#3d4654" stroke-width="1.25"/>`;
  let hits='';done.forEach((g,i)=>{const hx=x(i),hw=n>1?(W-padL-padR)/(n-1)/2:48;hits+=`<rect x="${hx-hw}" y="${padT}" width="${hw*2}" height="${H-padT-padB}" fill="transparent" data-act="dashi" data-i="${i}" style="cursor:pointer"/>`});
  const gAt=done[idx],mark=gpMark(gAt);
- let overlay='';
+ const stand=entities.map(e=>({n:e.label,c:e.c,p:e.ranks[idx],id:e.id})).sort((a,b)=>a.p-b.p);
+ const rows=stand.map(s=>`<div class="row" style="${focus===s.id?'opacity:1':'opacity:'+(focus?'.45':'1')}"><b>${s.p}</b><span class="nm" style="color:${s.c}">${esc(s.n)}</span><span class="pt"></span></div>`).join('');
+ let tip='';
  const foc=focus?entities.find(e=>e.id===focus):null;
  if(foc){
   const rk=foc.ranks[idx],py=y(rk),top=Math.max(8,Math.min(py-28,H-70));
-  overlay=`<div class="tip-pop" style="left:${(cx/W)*100}%;top:${(top/H)*100}%;transform:translate(${cx<W*0.55?'8px':'-108%'},-20%)"><div class="thd"><span>${mark} ${esc(gpShort(gAt))}</span><span class="rn">R${gAt.r}</span></div><div class="trow"><span class="who" style="color:${foc.c}">${esc(foc.label)}</span><span class="pos">${ordPos(rk)}</span></div></div>`;
- }else{
-  // без выбранной линии — полная таблица мест на этапе
-  const stand=entities.map(e=>({n:e.label,c:e.c,p:e.ranks[idx]})).sort((a,b)=>a.p-b.p);
-  const popSide=idx>n*0.55?'left':'right';
-  const popStyle=popSide==='left'?'left:12px;right:auto':'right:12px;left:auto';
-  overlay=`<div class="stand-pop" style="${popStyle}"><div class="hd"><span>${mark} ${esc(gpShort(gAt))}</span><span class="rn">R${gAt.r}</span></div>${stand.map(s=>`<div class="row"><b>${s.p}</b><span class="nm" style="color:${s.c}">${esc(s.n)}</span><span class="pt"></span></div>`).join('')}</div>`;
+  tip=`<div class="tip-pop" style="left:${(cx/W)*100}%;top:${(top/H)*100}%;transform:translate(${cx<W*0.55?'8px':'-108%'},-20%)"><div class="thd"><span>${mark} ${esc(gpShort(gAt))}</span><span class="rn">R${gAt.r}</span></div><div class="trow"><span class="who" style="color:${foc.c}">${esc(foc.label)}</span><span class="pos">${ordPos(rk)}</span></div></div>`;
  }
- return`<div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${hits}${paths}${cursor}${labels}</svg>${overlay}</div>${flagsRow(done,idx,padL,padR,W)}`}
+ return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${hits}${paths}${cursor}${labels}</svg>${tip}</div>${flagsRow(done,idx,padL,padR,W)}</div>${standPanel(mark,gpShort(gAt),gAt.r,rows)}</div>`}
 
 function dashView(){
  const done=yearGps().filter(fl);
