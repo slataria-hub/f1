@@ -64,13 +64,13 @@ textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px 
 .dash-main{flex:1;min-width:0;display:flex;flex-direction:column}
 .chart-box{position:relative;width:100%;height:min(62vh,560px);min-height:360px;user-select:none}
 .chart-box svg{display:block;width:100%;height:100%}
-.stand-pop{position:relative;flex:none;width:200px;max-height:min(62vh,560px);overflow:auto;background:rgba(15,20,28,.96);border:1px solid #2a3340;border-radius:12px;padding:12px 12px 10px;font-size:12.5px;z-index:2;box-shadow:0 8px 28px rgba(0,0,0,.35)}
-.stand-pop .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-weight:700;font-size:13.5px;color:#f0f4fa;position:sticky;top:0;background:rgba(15,20,28,.98);padding-bottom:6px}
-.stand-pop .hd .rn{color:#8b95a5;font-weight:500;font-size:11.5px}
+.stand-pop{position:relative;flex:none;width:240px;max-height:min(62vh,560px);overflow:auto;background:rgba(15,20,28,.96);border:1px solid #2a3340;border-radius:12px;padding:12px 12px 10px;font-size:12.5px;z-index:2;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+.stand-pop .hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;font-weight:700;font-size:13.5px;color:#f0f4fa;position:sticky;top:0;background:rgba(15,20,28,.98);padding-bottom:6px}
+.stand-pop .hd .rn{color:#8b95a5;font-weight:500;font-size:11.5px;flex:none}
 .stand-pop .row{display:flex;align-items:center;gap:7px;padding:2.5px 0;font-variant-numeric:tabular-nums}
-.stand-pop .row b{min-width:18px;color:#6b7585;font-weight:500;font-size:11.5px}
-.stand-pop .row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
-.stand-pop .row .pt{font-weight:600;min-width:30px;text-align:right;color:#e8edf5}
+.stand-pop .row b{min-width:18px;color:#6b7585;font-weight:500;font-size:11.5px;flex:none}
+.stand-pop .row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.stand-pop .row .pt{font-weight:600;min-width:32px;text-align:right;color:#e8edf5;flex:none}
 .tip-pop{position:absolute;min-width:140px;background:rgba(15,20,28,.95);border:1px solid #2a3340;border-radius:10px;padding:10px 12px;font-size:12.5px;z-index:3;box-shadow:0 8px 24px rgba(0,0,0,.4);pointer-events:none;color:#e8edf5}
 .tip-pop .thd{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px;font-weight:700;font-size:13px}
 .tip-pop .thd .rn{color:#8b95a5;font-weight:500;font-size:11.5px}
@@ -289,8 +289,8 @@ function pointsChart(done,mode){
  let hits='';done.forEach((g,i)=>{const hx=x(i),hw=n>1?(W-padL-padR)/(n-1)/2:48;hits+=`<rect x="${hx-hw}" y="${padT}" width="${hw*2}" height="${H-padT-padB}" fill="transparent" data-act="dashi" data-i="${i}" style="cursor:pointer"/>`});
  const stand=series.map(s=>({n:s.label,c:s.c,p:s.pts[idx]})).sort((a,b)=>b.p-a.p);
  const gAt=done[idx],mark=gpMark(gAt);
- const rows=stand.map((s,i)=>`<div class="row"><b>${i+1}</b><span class="nm" style="color:${s.c}">${esc(s.n)}</span><span class="pt">${s.p}</span></div>`).join('');
- return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${hits}${paths}${dots}${cursor}</svg></div>${flagsRow(done,idx,padL,padR,W)}</div>${standPanel(mark,gpShort(gAt),gAt.r,rows)}</div>`}
+ const rows=stand.map((s,i)=>`<div class="row"><b>${i+1}</b><span class="nm" style="color:${s.c}" title="${esc(s.n)}">${esc(s.n)}</span><span class="pt">${s.p}</span></div>`).join('');
+ return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" id="chartSvg">${grid}${hits}${paths}${dots}${cursor}</svg></div>${flagsRow(done,idx,padL,padR,W)}</div>${standPanel(mark,gpShort(gAt),gAt.r,rows)}</div>`}
 
 function smoothPath(pts){
  if(pts.length<2)return pts.length?`M${pts[0][0]},${pts[0][1]}`:'';
@@ -358,14 +358,14 @@ function rankingChart(done,mode){
  let hits='';done.forEach((g,i)=>{const hx=x(i),hw=n>1?(W-padL-padR)/(n-1)/2:48;hits+=`<rect x="${hx-hw}" y="${padT}" width="${hw*2}" height="${H-padT-padB}" fill="transparent" data-act="dashi" data-i="${i}" style="cursor:pointer"/>`});
  const gAt=done[idx],mark=gpMark(gAt);
  const stand=entities.map(e=>({n:e.label,c:e.c,p:e.ranks[idx],id:e.id})).sort((a,b)=>a.p-b.p);
- const rows=stand.map(s=>`<div class="row" style="${focus===s.id?'opacity:1':'opacity:'+(focus?'.45':'1')}"><b>${s.p}</b><span class="nm" style="color:${s.c}">${esc(s.n)}</span><span class="pt"></span></div>`).join('');
+ const rows=stand.map(s=>`<div class="row" style="${focus===s.id?'opacity:1':'opacity:'+(focus?'.45':'1')}"><b>${s.p}</b><span class="nm" style="color:${s.c}" title="${esc(s.n)}">${esc(s.n)}</span><span class="pt"></span></div>`).join('');
  let tip='';
  const foc=focus?entities.find(e=>e.id===focus):null;
  if(foc){
   const rk=foc.ranks[idx],py=y(rk),top=Math.max(8,Math.min(py-28,H-70));
   tip=`<div class="tip-pop" style="left:${(cx/W)*100}%;top:${(top/H)*100}%;transform:translate(${cx<W*0.55?'8px':'-108%'},-20%)"><div class="thd"><span>${mark} ${esc(gpShort(gAt))}</span><span class="rn">R${gAt.r}</span></div><div class="trow"><span class="who" style="color:${foc.c}">${esc(foc.label)}</span><span class="pos">${ordPos(rk)}</span></div></div>`;
  }
- return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${hits}${paths}${cursor}${labels}</svg>${tip}</div>${flagsRow(done,idx,padL,padR,W)}</div>${standPanel(mark,gpShort(gAt),gAt.r,rows)}</div>`}
+ return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" id="chartSvg">${grid}${hits}${paths}${cursor}${labels}</svg>${tip}</div>${flagsRow(done,idx,padL,padR,W)}</div>${standPanel(mark,gpShort(gAt),gAt.r,rows)}</div>`}
 
 function dashView(){
  const done=yearGps().filter(fl);
