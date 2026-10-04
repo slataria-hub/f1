@@ -281,8 +281,8 @@ function pointsChart(done,mode){
  let grid='';
  for(let v=0;v<=yMax;v+=stepY)grid+=`<line x1="${padL}" y1="${y(v)}" x2="${W-padR}" y2="${y(v)}" stroke="#1c2430" stroke-width="1"/><text x="${padL-10}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="#8b95a5" font-family="system-ui,sans-serif">${v}</text>`;
  let paths='',dots='';
- series.forEach(s=>{let d='';s.pts.forEach((p,i)=>{const px=x(i),py=y(p);d+=(i?' L':'M')+px+','+py;dots+=`<circle cx="${px}" cy="${py}" r="2.6" fill="${s.c}"/>`});
-  paths+=`<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`});
+ series.forEach(s=>{let d='';s.pts.forEach((p,i)=>{const px=x(i),py=y(p);d+=(i?' L':'M')+px+','+py;dots+=`<circle cx="${px}" cy="${py}" r="2.4" fill="${s.c}"/>`});
+  paths+=`<path d="${d}" fill="none" stroke="${s.c}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>`});
  const idx=V.dashIdx!=null?Math.min(V.dashIdx,n-1):n-1;
  const cx=x(idx);
  const cursor=`<line x1="${cx}" y1="${padT}" x2="${cx}" y2="${H-padB}" stroke="#3d4654" stroke-width="1.25"/>`;
@@ -343,12 +343,13 @@ function rankingChart(done,mode){
  let grid='';
  for(let r=1;r<=maxR;r++)grid+=`<line x1="${padL}" y1="${y(r)}" x2="${W-padR}" y2="${y(r)}" stroke="#1c2430" stroke-width="1"/><text x="${padL-8}" y="${y(r)+4}" text-anchor="end" font-size="10" fill="#8b95a5" font-family="system-ui,sans-serif">${r}</text>`;
  const focus=V.dashFocus;
- let paths='',labels='';
+ let paths='',labels='',dots='';
  entities.forEach(e=>{
   const pts=e.ranks.map((r,i)=>[x(i),y(r)]);
-  const sw=focus===e.id?2.6:1.6;
+  const sw=focus===e.id?2.4:1.6;
   const op=focus&&focus!==e.id?0.22:0.95;
   paths+=`<path d="${smoothPath(pts)}" fill="none" stroke="${e.c}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round" opacity="${op}" data-act="dashf" data-id="${e.id}" style="cursor:pointer"/>`;
+  pts.forEach(([px,py])=>{dots+=`<circle cx="${px}" cy="${py}" r="2.4" fill="${e.c}" opacity="${op}"/>`});
   const lastY=y(e.ranks[n-1]);
   labels+=`<text x="${W-padR+6}" y="${lastY+4}" font-size="11" font-weight="600" fill="${e.c}" opacity="${op}" font-family="system-ui,sans-serif" data-act="dashf" data-id="${e.id}" style="cursor:pointer">${esc(e.code)}</text>`;
  });
@@ -385,7 +386,7 @@ function rankingChart(done,mode){
   const posTxt=rp?rp+'-е в гонке':'в зачёте '+rk;
   tip=`<div class="tip-pop" style="left:${(cx/W)*100}%;top:${(top/H)*100}%;transform:translate(${cx<W*0.55?'8px':'-108%'},-20%)"><div class="thd"><span>${mark} ${esc(gpShort(gAt))}</span><span class="rn">R${gAt.r}</span></div><div class="trow"><span class="who" style="color:${foc.c}">${esc(foc.label)}</span><span class="pos">${posTxt}</span></div></div>`;
  }
- return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" id="chartSvg">${grid}${hits}${paths}${cursor}${labels}</svg>${tip}</div>${flagsRow(done,idx,padL,padR,W)}</div>${standPanel(mark,gpShort(gAt),gAt.r,rows)}</div>`}
+ return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" id="chartSvg">${grid}${hits}${paths}${dots}${cursor}${labels}</svg>${tip}</div>${flagsRow(done,idx,padL,padR,W)}</div>${standPanel(mark,gpShort(gAt),gAt.r,rows)}</div>`}
 
 function dashView(){
  const done=yearGps().filter(fl);
