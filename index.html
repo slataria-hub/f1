@@ -152,7 +152,7 @@ function setView(){
  const dup=d=>S.drv.some(z=>z!==d&&norm(z.n.split(' ').pop())==norm(d.n.split(' ').pop()));
  const op=v=>S.teams.map((t,i)=>`<option value="${i}"${i==v?' selected':''}>${esc(t.n)}</option>`).join('');
  return`<div class="sheet"><div class="row"><h2 style="margin:0;font:700 22px var(--hd)">Настройки</h2><button class="n" data-act="x">Готово</button></div>
- <div class="card"><div class="mu">Сезон ${S.year}</div><button class="pr" data-act="sync" style="width:100%;margin-top:8px">Загрузить этот сезон из базы F1</button><div class="mu" style="margin:6px 0 10px">Добавит все этапы и результаты прошедших гонок. Этапы с уже загруженными результатами не меняются. Сезон выбирается вверху на главном экране.</div><button data-act="all" style="width:100%">Загрузить все сезоны с 2020 года</button><div class="mu" style="margin-top:6px">Займёт 1–2 минуты, оставайтесь на этом экране.</div><button data-act="sched" style="width:100%;margin-top:10px">Только расписание этого сезона</button></div>
+ <div class="card"><div class="mu">Сезон ${S.year}</div><button class="pr" data-act="sync" style="width:100%;margin-top:8px">Загрузить этот сезон из базы F1</button><div class="mu" style="margin:6px 0 10px">Добавит все этапы и результаты прошедших гонок. Этапы с уже загруженными результатами не меняются. Сезон выбирается вверху на главном экране.</div><button data-act="all" style="width:100%">Загрузить все сезоны с 2020 года</button><div class="mu" style="margin-top:6px">Займёт 1–2 минуты, оставайтесь на этом экране.</div><button data-act="sched" style="width:100%;margin-top:10px">Только расписание этого сезона</button><button class="dg" data-act="rst" style="width:100%;margin-top:10px">${V.rs?'Точно очистить?':'Очистить этот сезон'}</button><div class="mu" style="margin-top:6px">Удалит все этапы, пилотов и команды выбранного сезона, чтобы загрузить его заново из базы. Нужно, если появились лишние или повторяющиеся этапы. Ваши ручные правки этого сезона пропадут.</div></div>
  <div class="card"><div class="mu" style="margin-bottom:8px">Названия команд</div>${S.teams.map((t,i)=>`<input type="text" style="margin-bottom:6px" data-t="${i}" value="${esc(t.n)}">`).join('')}</div>
  <div class="mu" style="margin:0 4px 8px">Пилоты. У каждого пилота периоды: команда, с какого этапа, по какой (пусто — до конца сезона). Имена латиницей, фамилия последней — так работает автозагрузка. «Сменить команду» закрывает текущий период и добавляет новый со следующего этапа после последнего заполненного. Замена на один этап: у основного пилота закройте период до этапа перед пропуском и добавьте новый после него, а заменяющему задайте период на нужный этап.</div>
  ${S.drv.map(d=>`<div class="card"><div class="row"><input type="text" data-dn="${d.id}" value="${esc(d.n)}"><button class="dg n" data-act="delp" data-id="${d.id}">${V.dd==d.id?'Точно?':'Удалить'}</button></div>${dup(d)?'<div class="mu" style="color:#d33;margin-bottom:6px">Есть другой пилот с такой же фамилией. Автозагрузка кладёт результаты только одному из них. Оставьте одну запись и задайте ей несколько периодов.</div>':''}${d.s.map((z,j)=>`<div class="rr"><select data-sg="${d.id}:${j}:t">${op(z.t)}</select><input type="number" data-sg="${d.id}:${j}:f" value="${z.f}" aria-label="С этапа"><input type="number" data-sg="${d.id}:${j}:u" value="${z.u??''}" placeholder="по этап" aria-label="По этап"></div>`).join('')}<button data-act="addp" data-id="${d.id}">Сменить команду</button></div>`).join('')}
@@ -167,7 +167,7 @@ async function jget(u){const r=await fetch(u);if(!r.ok)throw new Error(r.status)
 async function jall(u){let o=0,t=1;const R={};while(o<t){const r=await fetch(u+'.json?limit=100&offset='+o);if(!r.ok)throw new Error(r.status);const j=(await r.json()).MRData;t=+j.total;(j.RaceTable.Races||[]).forEach(x=>{const k=+x.round;if(!R[k])R[k]=x;else['Results','QualifyingResults','SprintResults'].forEach(f=>{if(x[f])R[k][f]=(R[k][f]||[]).concat(x[f])})});o+=100;await wait(350)}return R}
 const col=n=>{const k=norm(n),M=[['mclaren','#ff8000'],['ferrari','#e8002d'],['red bull','#3671c6'],['mercedes','#27c7a8'],['aston','#229971'],['alpine','#ff87bc'],['williams','#3aa7e0'],['bulls','#6692ff'],['alphatauri','#6692ff'],['toro','#6692ff'],['haas','#9aa0a6'],['audi','#a05a2c'],['sauber','#52e252'],['alfa','#a8323e'],['renault','#ffd800'],['racing point','#f596c8'],['force india','#f596c8'],['cadillac','#e0b100']],f=M.find(x=>k.includes(x[0]));if(f)return f[1];let h=0;for(const c of k)h=(h*31+c.charCodeAt(0))%360;return'hsl('+h+' 60% 55%)'};
 const ti=n=>{const k=norm(n||'');let i=S.teams.findIndex(t=>k&&(norm(t.n).includes(k)||k.includes(norm(t.n))));if(i<0){S.teams.push({n:n||'—',c:col(n||'')});i=S.teams.length-1}return i};
-let MS=[];
+let MS=[],BUSY=0;
 function applyRes(g,a,q,s){
  const miss=new Set();g.at={};g.ap={};
  const m=(arr,k)=>(arr||[]).map(x=>{const D=x.Driver,T=ti(x.Constructor?.name);let d=drs().find(z=>z.api==D.driverId);
@@ -178,17 +178,21 @@ function applyRes(g,a,q,s){
  g.race=m(a?.Results,'r');g.q=m(q?.QualifyingResults);g.spr=m(s?.SprintResults,'s');if(g.spr.length)g.sp=true;MS.push(...miss);return miss}
 async function sched(){try{const T=await jget(API+S.year+'.json?limit=100');let n=0;T.Races.forEach(r=>{if(S.gps.some(g=>g.r==+r.round))return;S.gps.push({id:'g'+r.round+Date.now(),n:r.raceName,r:+r.round,sp:!!r.Sprint,d:r.date,race:[],spr:[],q:[],ov:{}});n++});S.gps.sort((a,b)=>a.r-b.r);save();V.set=false;render();toast('Добавлено гран-при: '+n)}catch(e){toast('Не удалось связаться с базой F1. В предпросмотре это заблокировано; на GitHub Pages должно работать.')}}
 async function syncSeason(){
- const T=await jget(API+S.year+'.json?limit=100'),RR=await jall(API+S.year+'/results'),QQ=await jall(API+S.year+'/qualifying'),SS=await jall(API+S.year+'/sprint').catch(()=>({})),td=new Date().toISOString().slice(0,10);let ok=0;
- T.Races.forEach(r=>{const k=+r.round;let g=S.gps.find(x=>x.r==k);if(!g){g={id:'g'+S.year+'_'+k,n:r.raceName,r:k,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{}};S.gps.push(g)}
-  if(!g.n||g.n=='Новый гран-при')g.n=r.raceName;g.d=r.date;if(r.Sprint)g.sp=true;
+ const Y=S.year,T=await jget(API+Y+'.json?limit=100'),RR=await jall(API+Y+'/results'),QQ=await jall(API+Y+'/qualifying'),SS=await jall(API+Y+'/sprint').catch(()=>({})),td=new Date().toISOString().slice(0,10);
+ if(S.year!=Y||!T.Races.length)return 0;
+ let ok=0;const ds=new Set(T.Races.map(r=>r.date));
+ S.gps=S.gps.filter(g=>!g.d||ds.has(g.d));
+ T.Races.forEach(r=>{const k=+r.round;let g=S.gps.find(x=>x.d==r.date)||S.gps.find(x=>!x.d&&x.r==k);
+  if(!g){g={id:'g'+Y+'_'+k,n:r.raceName,r:k,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{}};S.gps.push(g)}
+  g.r=k;if(!g.n||g.n=='Новый гран-при')g.n=r.raceName;g.d=r.date;if(r.Sprint)g.sp=true;
   if(r.date<=td&&(!fl(g)||!g.ap)&&(RR[k]||QQ[k])){applyRes(g,RR[k],QQ[k],SS[k]);ok++}});
  S.gps.sort((a,b)=>a.r-b.r);save();return ok}
-async function syncAll(){try{toast('Загружаю сезон '+S.year+'…');MS=[];const n=await syncSeason();render();toast('Загружено этапов: '+n+(MS.length?'. Добавлены новые пилоты: '+MS.length:''))}catch(e){toast('Не удалось загрузить. Проверьте подключение; возможно, превышен лимит запросов — повторите позже.')}}
+async function syncAll(){if(BUSY)return toast('Загрузка уже идёт, подождите');BUSY=1;try{toast('Загружаю сезон '+S.year+'…');MS=[];const n=await syncSeason();render();toast('Загружено этапов: '+n+(MS.length?'. Добавлены новые пилоты: '+MS.length:''))}catch(e){toast('Не удалось загрузить. Проверьте подключение; возможно, превышен лимит запросов — повторите позже.')}BUSY=0}
 function setYear(y){if(y==S.year)return;S.old=S.old||{};S.old[S.year]={teams:S.teams,drv:S.drv,gps:S.gps};const o=S.old[y];delete S.old[y];S.teams=o?o.teams:[];S.drv=o?o.drv:[];S.gps=o?o.gps:[];S.year=y}
-async function allSeasons(){const y0=S.year,cy=new Date().getFullYear();let tot=0;V.gp=null;MS=[];
- try{for(let y=2020;y<=cy;y++){toast('Сезон '+y+'…');setYear(y);tot+=await syncSeason();render();await wait(800)}
-  setYear(y0);save();render();toast('Готово. Загружено этапов: '+tot)}
- catch(e){setYear(y0);save();render();toast('Загрузка прервана (лимит запросов или обрыв связи). Повторите позже — загрузятся только недостающие этапы.')}}
+async function allSeasons(){if(BUSY)return toast('Загрузка уже идёт, подождите');BUSY=1;const y0=S.year,cy=new Date().getFullYear();let tot=0,m='';V.gp=null;MS=[];
+ try{for(let y=2020;y<=cy;y++){toast('Сезон '+y+'…');setYear(y);tot+=await syncSeason();render();await wait(800)}m='Готово. Загружено этапов: '+tot}
+ catch(e){m='Загрузка прервана (лимит запросов или обрыв связи). Повторите позже — загрузятся только недостающие этапы.'}
+ setYear(y0);save();render();toast(m);BUSY=0}
 async function loadGp(g){
  try{const b=API+S.year+'/'+g.r+'/',F=async p=>(await jget(b+p+'.json')).Races[0];
   const[a,q,s]=await Promise.all([F('results'),F('qualifying'),F('sprint').catch(()=>null)]);
@@ -199,7 +203,7 @@ async function loadGp(g){
  catch(e){toast('Не удалось загрузить. Проверьте номер этапа и сезон; в предпросмотре сеть заблокирована.');return -1}}
 
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const d=b.dataset,a=d.act,g=V.gp&&gp(),i=+d.i;
- const L=g&&(V.mode=='r'?g.race:V.mode=='s'?g.spr:g.q);if(a!='del')V.del=false;if(a!='delp')V.dd=null;
+ const L=g&&(V.mode=='r'?g.race:V.mode=='s'?g.spr:g.q);if(a!='del')V.del=false;if(a!='delp')V.dd=null;if(a!='rst')V.rs=false;
  if(a=='tab')V.tab=d.v;else if(a=='open'){V.gp=d.id;V.mode='r'}else if(a=='back')V.gp=null;else if(a=='mode')V.mode=d.v;
  else if(a=='add'){clrap(g,V.mode);L.push(d.id)}
  else if(a=='rm'){clrap(g,V.mode);delete g.ov[V.mode+L[i]];L.splice(i,1)}
@@ -210,12 +214,12 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
  else if(a=='newd'){const f=Math.max(0,...S.gps.filter(fl).map(g=>g.r))+1;S.drv.push({id:'d'+Date.now(),n:'Новый пилот',s:[{t:0,f,u:null}]})}
  else if(a=='delp'){if(V.dd==d.id){S.drv=S.drv.filter(z=>z.id!=d.id);S.gps.forEach(g=>['race','spr','q'].forEach(k=>g[k]=g[k].filter(x=>x!=d.id)));V.dd=null}else V.dd=d.id}
  else if(a=='set')V.set=true;else if(a=='x')V.set=false;
- else if(a=='sched')return sched();else if(a=='sync')return syncAll();else if(a=='all')return allSeasons();else if(a=='hl')V.hl=V.hl==d.id?null:d.id;else if(a=='ck'){V.ck=d.v;V.hl=null}else if(a=='load')return loadGp(g);
+ else if(a=='sched')return sched();else if(a=='rst'){if(V.rs){S.gps=[];S.drv=[];S.teams=[];V.rs=false;V.gp=null}else V.rs=true}else if(a=='sync')return syncAll();else if(a=='all')return allSeasons();else if(a=='hl')V.hl=V.hl==d.id?null:d.id;else if(a=='ck'){V.ck=d.v;V.hl=null}else if(a=='load')return loadGp(g);
  else if(a=='show'){$('#bk').value=JSON.stringify(S);return}
  else if(a=='restore'){try{const o=JSON.parse($('#bk').value);if(!o.teams||!o.gps)throw 0;S=mig(o);toast('Данные восстановлены')}catch(x){toast('Текст копии не распознан');return}}
  save();render()});
 document.addEventListener('change',e=>{const x=e.target,d=x.dataset,g=V.gp&&gp();
- if(d.ys){setYear(+x.value);V.gp=null;V.hl=null;save();render();return}else if(d.f){g[d.f]=x.type=='checkbox'?x.checked:x.type=='number'?+x.value:x.value;if(d.f=='sp'){if(!x.checked){g.spr=[];if(V.mode=='s')V.mode='r'}save();render();return}}
+ if(d.ys){if(BUSY){toast('Идёт загрузка — смените сезон после её окончания');render();return}setYear(+x.value);V.gp=null;V.hl=null;save();render();return}else if(d.f){g[d.f]=x.type=='checkbox'?x.checked:x.type=='number'?+x.value:x.value;if(d.f=='sp'){if(!x.checked){g.spr=[];if(V.mode=='s')V.mode='r'}save();render();return}}
  else if(d.ov){x.value===''?delete g.ov[d.ov]:g.ov[d.ov]=+x.value}
  else if(d.t!=null)S.teams[d.t].n=x.value;
  else if(d.dn)S.drv.find(z=>z.id==d.dn).n=x.value;
@@ -225,5 +229,5 @@ document.addEventListener('change',e=>{const x=e.target,d=x.dataset,g=V.gp&&gp()
 render();
 (async()=>{const cy=new Date().getFullYear();
  if(S.year<cy&&!(S.old&&S.old[cy])){setYear(cy);save();render()}
- if(S.year==cy&&Date.now()-(S.ls||0)>3*36e5){try{MS=[];await syncSeason();S.ls=Date.now();save();render()}catch(e){}}})();
+ if(!BUSY&&S.year==cy&&Date.now()-(S.ls||0)>3*36e5){BUSY=1;try{MS=[];await syncSeason();S.ls=Date.now();save();render()}catch(e){}BUSY=0}})();
 </script></body></html>
