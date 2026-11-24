@@ -230,6 +230,142 @@ function tableView(){
  AT.forEach(({i})=>{(cols[i]||[]).forEach(d=>h+=`<td>${dTi(d,i)}</td>`);h+=`<td class="tt">${tT(i)}</td>`});
  return h+'</tr></tfoot></table></div>'}
 
+
+function maxPtsRemaining(){
+ const Y=yearGps();
+ let m=0,n=0;
+ Y.forEach(g=>{
+  if(fl(g))return; // already has results
+  n++;
+  m+=25; // race win
+  if(g.sp)m+=8; // sprint win
+ });
+ return{pts:m,races:n};
+}
+function titlePathDrivers(){
+ const Y=yearGps();
+ const teamOf=d=>{for(let i=Y.length-1;i>=0;i--){const t=tm(d,Y[i]);if(t>=0&&part(Y[i],d.id))return t}return last(d)};
+ const D=S.drv.filter(d=>Y.some(g=>part(g,d.id))).map(d=>{
+  const ti=teamOf(d);
+  return{id:d.id,n:d.n,c:ti>=0&&S.teams[ti]?S.teams[ti].c:'#888',p:dT(d.id)};
+ }).sort((a,b)=>b.p-a.p);
+ const rem=maxPtsRemaining();
+ if(!D.length)return{rows:[],rem};
+ // each driver max final = current + rem.pts (assume can still race all)
+ const rows=D.map((d,i)=>{
+  const maxFinal=d.p+rem.pts;
+  const leader=D[0];
+  // can still be champion if maxFinal >= leader.p (leader could stall) — more precisely >= any rival's current if they max
+  // mathematical elimination: eliminated if maxFinal < leader.p (cannot catch even if leader scores 0)
+  // but leader might not be the only one ahead - eliminated if cannot reach 1st: maxFinal < D[0].p is wrong if multiple...
+  // Can be champ if maxFinal is >= every other driver's current points? No: other can still score.
+  // True: driver can still win title if their maxFinal >= max of (other drivers' current + their remaining).
+  // For simplicity same rem for all: can be champ if maxFinal >= D[0].p  when d is not leader? 
+  // Leader always can. For 2nd: can if d.p+rem >= leader.p (leader gets 0).
+  // Actually best possible rank 1 if d.p+rem >= max over others of (other.p) with leader getting 0 only helps vs current standings:
+  // Driver D can still be champion iff D.p + rem.pts >= max_{other} (other.p)  — wait no, others also get rem.
+  // Correct pairwise: D finishes ahead of R if we assign points optimally for D.
+  // Full: D is still in title fight if there exists distribution where D ends with most points.
+  // Conservative common F1 media approach: still alive if D.p + rem >= leader.p (can catch leader if leader scores 0 and D maxes).
+  // Stricter: alive if D.p + rem >= max over rivals R of min points R can be held to... complex.
+  // Use standard: alive if maxFinal >= leader.p (can at least equal/pass current leader if leader scores 0).
+  const alive=d.p+rem.pts>=leader.p;
+  // For leader: points needed to clinch = max(0, second.p + rem.pts - leader.p)  
+  // When 0, already clinched (even with 0 more points, 2nd cannot catch)
+  let needClinch=null;
+  if(i===0){
+   const second=D[1]?D[1].p:0;
+   needClinch=Math.max(0, second+rem.pts - d.p);
+  }
+  // gap to leader
+  const gap=leader.p-d.p;
+  // points needed to catch leader if leader scores 0: gap (already)
+  // max possible final position estimate
+  return{...d,maxFinal,alive,needClinch,gap,i};
+ });
+ return{rows,rem,leader:D[0],second:D[1]};
+}
+function titlePathTeams(){
+ const Y=yearGps();
+ const T=activeTeams().map(({i,n,c})=>({i,n,c,p:tT(i)}))
+  .filter(t=>Y.some(g=>S.drv.some(d=>tm(d,g)===t.i&&part(g,d.id))))
+  .sort((a,b)=>b.p-a.p);
+ const rem=maxPtsRemaining();
+ // teams can score up to 2x driver max roughly (both cars) — both drivers can finish 1st and 2nd = 25+18=43 + sprint 8+7=15 → 58
+ let m=0,n=0;
+ Y.forEach(g=>{
+  if(fl(g))return;
+  n++;
+  m+=25+18; // 1st+2nd in race
+  if(g.sp)m+=8+7; // 1st+2nd sprint
+ });
+ const remTeam={pts:m,races:n};
+ if(!T.length)return{rows:[],rem:remTeam};
+ const leader=T[0];
+ const rows=T.map((t,i)=>{
+  const maxFinal=t.p+remTeam.pts;
+  const alive=t.p+remTeam.pts>=leader.p;
+  let needClinch=null;
+  if(i===0){
+   const second=T[1]?T[1].p:0;
+   needClinch=Math.max(0, second+remTeam.pts - t.p);
+  }
+  return{...t,maxFinal,alive,needClinch,gap:leader.p-t.p,i};
+ });
+ return{rows,rem:remTeam,leader:T[0],second:T[1]};
+}
+function titlePathCard(){
+ const dr=titlePathDrivers();
+ const tm=titlePathTeams();
+ if(!dr.rows.length&&!tm.rows.length)return'';
+ const rem=dr.rem;
+ let head='';
+ if(rem.races===0){
+  head=`<div class="card" style="border-color:var(--ac)"><div class="mu">Сезон завершён · ${S.year}</div>
+   ${dr.leader?`<p style="margin:8px 0 0;font:700 18px var(--hd)">Чемпион: <span style="color:${dr.leader.c}">${esc(dr.leader.n)}</span> · ${dr.leader.p} очков</p>`:''}
+   ${tm.leader?`<p style="margin:6px 0 0;font:700 16px var(--hd)">Кубок конструкторов: <span style="color:${tm.leader.c}">${esc(tm.leader.n)}</span> · ${tm.leader.p}</p>`:''}
+  </div>`;
+ }else{
+  const L=dr.leader,need=dr.rows[0]&&dr.rows[0].needClinch;
+  const TL=tm.leader,tneed=tm.rows[0]&&tm.rows[0].needClinch;
+  head=`<div class="card" style="border-left:4px solid var(--ac)">
+   <div style="font:700 17px var(--hd);margin-bottom:8px">Путь к титулу · ${S.year}</div>
+   <div class="mu" style="margin-bottom:10px">Осталось этапов: <b>${rem.races}</b> · макс. очков пилоту: <b>${rem.pts}</b> · команде: <b>${tm.rem.pts}</b></div>
+   ${L?`<div style="margin-bottom:10px;padding:10px;background:rgba(127,127,127,.06);border-radius:10px">
+    <div class="mu">Личный зачёт</div>
+    <div style="font:700 16px var(--hd);color:${L.c}">${esc(L.n)} · ${L.p} очков</div>
+    ${need===0?`<div style="margin-top:6px;color:#1a9a52;font-weight:700">Титул уже гарантирован математически</div>`:
+      `<div style="margin-top:6px">До гарантии титула: <b style="font:700 20px var(--hd);color:var(--ac)">${need}</b> очков
+      <div class="mu" style="margin-top:4px">Даже если ${dr.second?esc(surname(dr.second.n)):'преследователь'} наберёт максимум (${dr.second?dr.second.p:0}+${rem.pts}), лидеру достаточно ещё ${need}</div></div>`}
+   </div>`:''}
+   ${TL?`<div style="padding:10px;background:rgba(127,127,127,.06);border-radius:10px">
+    <div class="mu">Кубок конструкторов</div>
+    <div style="font:700 16px var(--hd);color:${TL.c}">${esc(TL.n)} · ${TL.p} очков</div>
+    ${tneed===0?`<div style="margin-top:6px;color:#1a9a52;font-weight:700">Кубок уже гарантирован математически</div>`:
+      `<div style="margin-top:6px">До гарантии кубка: <b style="font:700 20px var(--hd);color:var(--ac)">${tneed}</b> очков
+      <div class="mu" style="margin-top:4px">Учитывается максимум двух машин (1–2 места в гонке${' и спринте'})</div></div>`}
+   </div>`:''}
+  </div>`;
+ }
+ // tables who is still in fight
+ const aliveD=dr.rows.filter(r=>r.alive);
+ const outD=dr.rows.filter(r=>!r.alive);
+ const aliveT=tm.rows.filter(r=>r.alive);
+ const rowD=r=>`<div class="li"><b>${r.i+1}</b><span class="dot" style="background:${r.c}"></span><span class="nm">${esc(r.n)}${r.i===0&&r.needClinch===0?' <span class="badge ok">чемпион</span>':(!r.alive?' <span class="badge">вне борьбы</span>':'')}</span><span class="mu">сейчас ${r.p}</span><b title="максимум к концу сезона">${r.maxFinal}</b></div>`;
+ const rowT=r=>`<div class="li"><b>${r.i+1}</b><span class="dot" style="background:${r.c}"></span><span class="nm">${esc(r.n)}${r.i===0&&r.needClinch===0?' <span class="badge ok">кубок</span>':(!r.alive?' <span class="badge">вне борьбы</span>':'')}</span><span class="mu">сейчас ${r.p}</span><b title="максимум к концу">${r.maxFinal}</b></div>`;
+ const body=rem.races>0?`<div class="card">
+  <div class="mu" style="margin-bottom:6px">Личный зачёт — ещё в борьбе за титул (макс. к финишу ≥ очков лидера)</div>
+  ${aliveD.map(rowD).join('')||'<p class="mu">—</p>'}
+  ${outD.length?`<div class="mu" style="margin:12px 0 6px">Уже не могут догнать лидера</div>${outD.map(rowD).join('')}`:''}
+ </div>
+ <div class="card">
+  <div class="mu" style="margin-bottom:6px">Кубок конструкторов — ещё в борьбе</div>
+  ${aliveT.map(rowT).join('')||'<p class="mu">—</p>'}
+ </div>
+ <p class="mu" style="margin:0 4px 12px">Справа жирным — максимум очков, который теоретически можно набрать к концу сезона. «До гарантии титула» — сколько ещё нужно лидеру, даже если преследователь выиграет всё оставшееся.</p>`:'';
+ return head+body;
+}
+
 function standView(){
  const Y=yearGps();
  const teamOf=d=>{for(let i=Y.length-1;i>=0;i--){const t=tm(d,Y[i]);if(t>=0&&part(Y[i],d.id))return t}return last(d)};
@@ -248,7 +384,7 @@ function standView(){
  const lst=A=>A.map((x,i)=>{const df=i===0?'—':(x.p-A[i-1].p);const dfs=df===0?'0':(df>0?'+'+df:String(df));
   return`<div class="li"><b>${i+1}</b><span class="dot" style="background:${x.c}"></span><span class="nm">${esc(x.n)}${x.sub?`<div class="mu">${esc(x.sub)}</div>`:''}</span><b>${x.p}</b><span class="df">${dfs}</span></div>`}).join('');
  const hd=t=>`<h3 style="margin:0 0 6px;font:700 18px var(--hd)">${t}</h3>`;
- return leaderCard+`<div class="card">${hd('Командный зачёт · '+S.year)}${lst(T)}</div><div class="card">${hd('Личный зачёт · '+S.year)}${lst(D)}</div>`}
+ return titlePathCard()+leaderCard+`<div class="card">${hd('Командный зачёт · '+S.year)}${lst(T)}</div><div class="card">${hd('Личный зачёт · '+S.year)}${lst(D)}</div>`}
 
 function matesView(){const P={},K=(i,x,y)=>i+x.id+y.id;const Y=yearGps();
  S.teams.forEach((t,i)=>{const c=S.drv.filter(d=>Y.some(g=>tm(d,g)===i));if(c.length>1){const pairs=[];for(let a=0;a<c.length;a++)for(let b=a+1;b<c.length;b++)pairs.push([c[a],c[b]]);pairs.forEach(([x,y])=>{P[K(i,x,y)]={i,x,y,a:0,b:0}})}});
