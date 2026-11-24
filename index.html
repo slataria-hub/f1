@@ -224,6 +224,34 @@ const dT=id=>yearGps().reduce((a,g)=>a+tot(g,id),0);
 const dTi=(d,i)=>yearGps().reduce((a,g)=>a+(tm(d,g)==i?tot(g,d.id):0),0);
 const tP=(i,g)=>S.drv.reduce((a,d)=>a+(tm(d,g)==i?tot(g,d.id):0),0);
 const tT=i=>yearGps().reduce((a,g)=>a+tP(i,g),0);
+
+function mapApiStatus(x){
+ // x = result object from Ergast/Jolpica
+ const pt=(x.positionText||'').toUpperCase();
+ const st=(x.status||'').toLowerCase();
+ if(pt==='D'||st.includes('disqual'))return 'DSQ';
+ if(pt==='W'||st.includes('withdrew')||st.includes('withdrawn')||st==='did not start'||st.includes('not started')||st.includes('illness')||st.includes('excluded')||pt==='E'||pt==='F')return 'DNS';
+ if(pt==='R'||st.includes('retired')||st.includes('accident')||st.includes('collision')||st.includes('engine')||st.includes('gearbox')||st.includes('brakes')||st.includes('suspension')||st.includes('hydraulics')||st.includes('electrical')||st.includes('spun')||st.includes('puncture')||st.includes('wheel')||st.includes('transmission')||st.includes('clutch')||st.includes('oil')||st.includes('water')||st.includes('fuel')||st.includes('turbo')||st.includes('overheating')||st.includes('mechanical')||st.includes('power')||st.includes('exhaust')||st.includes('driveshaft')||st.includes('differential')||st.includes('throttle')||st.includes('damage')||st.includes('crash')||st.includes('out of fuel')||st==='did not finish')return 'DNF';
+ if(st.includes('not classified')||pt==='NC')return 'NC';
+ // +n laps or Finished → OK
+ return 'OK';
+}
+function raceSt(g,id){
+ if(g.st&&g.st[id])return g.st[id];
+ return null;
+}
+function racePosLabel(g,id){
+ const st=raceSt(g,id);
+ if(st&&st!=='OK')return st;
+ const i=g.race.indexOf(id);
+ if(i>=0)return i+1;
+ if(st==='OK')return '—';
+ // fallback without status data
+ if(g.q.includes(id)||(g.at&&g.at[id]!=null)){
+  if(g.race.length)return 'DNF'; // was entered but not in race list
+ }
+ return '—';
+}
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3500)}
 function ensurePred(g){if(!g.pred)g.pred={race:[],spr:[]};if(!g.pred.race)g.pred.race=[];if(!g.pred.spr)g.pred.spr=[];return g.pred}
 function predScore(g){
@@ -253,7 +281,7 @@ function tableView(){
  h+='</tr></thead><tbody>';
  G.forEach(g=>{const f=fl(g);
   h+=`<tr data-act="open" data-id="${g.id}"><th class="s1"><span class="rn">${g.r}</span>${esc(g.n)}${g.sp?'<i>спринт</i>':''}</th>`;
-  AT.forEach(({i})=>{(cols[i]||[]).forEach(d=>h+=`<td>${f?(tm(d,g)==i?(g.race.indexOf(d.id)>=0||g.spr.indexOf(d.id)>=0?tot(g,d.id):(g.q.indexOf(d.id)>=0||(g.at&&g.at[d.id]!=null)?'DNF':'')):''):'·'}</td>`);h+=`<td class="tt">${f?tP(i,g):'·'}</td>`});
+  AT.forEach(({i})=>{(cols[i]||[]).forEach(d=>h+=`<td>${f?(tm(d,g)==i?((()=>{const st=raceSt(g,d.id);if(st&&st!=='OK')return st;if(g.race.indexOf(d.id)>=0||g.spr.indexOf(d.id)>=0)return tot(g,d.id);if(g.q.indexOf(d.id)>=0||(g.at&&g.at[d.id]!=null))return 'DNF';return '';})()):''):'·'}</td>`);h+=`<td class="tt">${f?tP(i,g):'·'}</td>`});
   h+='</tr>'});
  h+='</tbody><tfoot><tr><th class="s1">Всего очков</th>';
  AT.forEach(({i})=>{(cols[i]||[]).forEach(d=>h+=`<td>${dTi(d,i)}</td>`);h+=`<td class="tt">${tT(i)}</td>`});
@@ -699,25 +727,34 @@ function h2hView(){
  let qA=0,qB=0,rA=0,rB=0,ptsA=0,ptsB=0;
  const rows=[];
  const status=(g,id)=>{
-  const ri=g.race.indexOf(id),si=g.spr.indexOf(id),qi=g.q.indexOf(id);
-  if(ri>=0)return{pos:ri+1,pts:tot(g,id),fin:true};
-  if(si>=0&&!g.race.length)return{pos:si+1,pts:tot(g,id),fin:true}; // only sprint listed
-  // entered session but not in race classification → DNF/DNS
-  if(qi>=0||si>=0||(g.at&&g.at[id]!=null))return{pos:'DNF',pts:tot(g,id)||0,fin:false};
-  return{pos:'—',pts:'',fin:false};
+  const st=raceSt(g,id);
+  const ri=g.race.indexOf(id),qi=g.q.indexOf(id);
+  const label=racePosLabel(g,id);
+  const finished=st==='OK'||(st==null&&ri>=0);
+  const pts=tot(g,id);
+  // For points column: show status code if not classified finish
+  let ptsLabel=pts;
+  if(st&&st!=='OK')ptsLabel=st;
+  else if(st==null&&ri<0&&(qi>=0||(g.at&&g.at[id]!=null))&&g.race.length)ptsLabel='DNF';
+  return{pos:label,pts:ptsLabel,fin:!!finished,st:st||(label==='DNF'?'DNF':null)};
  };
  Y.forEach(g=>{
   const qiA=g.q.indexOf(A.id),qiB=g.q.indexOf(B.id);
   const riA=g.race.indexOf(A.id),riB=g.race.indexOf(B.id);
   const pA=tot(g,A.id),pB=tot(g,B.id);
   if(qiA>=0&&qiB>=0){if(qiA<qiB)qA++;else if(qiB<qiA)qB++}
-  if(riA>=0&&riB>=0){if(riA<riB)rA++;else if(riB<riA)rB++}
+  // race H2H only among classified finishers
+  if(riA>=0&&riB>=0){
+   const stA=raceSt(g,A.id),stB=raceSt(g,B.id);
+   const okA=!stA||stA==='OK',okB=!stB||stB==='OK';
+   if(okA&&okB){if(riA<riB)rA++;else if(riB<riA)rB++}
+  }
   ptsA+=pA;ptsB+=pB;
   const sA=status(g,A.id),sB=status(g,B.id);
-  if(qiA>=0||qiB>=0||riA>=0||riB>=0||pA||pB||sA.pos==='DNF'||sB.pos==='DNF'){
+  if(qiA>=0||qiB>=0||riA>=0||riB>=0||pA||pB||sA.st||sB.st){
    rows.push({n:gpShort(g),mark:gpMark(g),
-    qA:qiA>=0?qiA+1:(sA.pos==='DNF'?'—':'—'),qB:qiB>=0?qiB+1:'—',
-    rA:sA.pos,rB:sB.pos,pA:sA.pos==='DNF'&&!pA?'DNF':(sA.pts===''?'':sA.pts),pB:sB.pos==='DNF'&&!pB?'DNF':(sB.pts===''?'':sB.pts)});
+    qA:qiA>=0?qiA+1:'—',qB:qiB>=0?qiB+1:'—',
+    rA:sA.pos,rB:sB.pos,pA:sA.pts,pB:sB.pts});
   }
  });
  const gLast=Y[Y.length-1]||{at:{}};
@@ -754,7 +791,7 @@ function h2hView(){
  </div>
  <div class="card"><div class="mu" style="margin-bottom:8px">По этапам</div>
   <div class="tw"><table><thead><tr><th class="s1">Этап</th><th style="color:${cA}">Квал<br><span style="font-weight:600;font-size:11px">${esc(surname(A.n))}</span></th><th style="color:${cB}">Квал<br><span style="font-weight:600;font-size:11px">${esc(surname(B.n))}</span></th><th style="color:${cA}">Гонка<br><span style="font-weight:600;font-size:11px">${esc(surname(A.n))}</span></th><th style="color:${cB}">Гонка<br><span style="font-weight:600;font-size:11px">${esc(surname(B.n))}</span></th><th style="color:${cA}">Очки<br><span style="font-weight:600;font-size:11px">${esc(surname(A.n))}</span></th><th style="color:${cB}">Очки<br><span style="font-weight:600;font-size:11px">${esc(surname(B.n))}</span></th></tr></thead>
-  <tbody>${rows.map(r=>{const c=v=>v==='DNF'?'<span class="dnf">DNF</span>':(v===0||v?''+v:'');return`<tr><th class="s1">${r.mark} ${esc(r.n)}</th><td>${c(r.qA)}</td><td>${c(r.qB)}</td><td>${c(r.rA)}</td><td>${c(r.rB)}</td><td>${c(r.pA)}</td><td>${c(r.pB)}</td></tr>`}).join('')}</tbody></table></div>
+  <tbody>${rows.map(r=>{const c=v=>{if(v==='DNF'||v==='DNS'||v==='DSQ'||v==='NC')return`<span class="dnf" title="${v}">${v}</span>`;return (v===0||v)?''+v:'';};return`<tr><th class="s1">${r.mark} ${esc(r.n)}</th><td>${c(r.qA)}</td><td>${c(r.qB)}</td><td>${c(r.rA)}</td><td>${c(r.rB)}</td><td>${c(r.pA)}</td><td>${c(r.pB)}</td></tr>`}).join('')}</tbody></table></div>
  </div>`;
 }
 
@@ -915,7 +952,7 @@ function gpsView(){
  const A=[...Y].sort((a,b)=>(!fl(a)-!fl(b))||(fl(a)?b.r-a.r:a.r-b.r));
  return A.map(g=>{const f=fl(g),B=activeTeams().map(({i,n,c})=>({n,c,i,m:S.drv.filter(d=>tm(d,g)==i&&(!f||part(g,d.id))),p:tP(i,g)})).filter(b=>b.m.length);
   if(f)B.sort((a,b)=>b.p-a.p);
-  const dr=d=>{const q=g.q.indexOf(d.id)+1,r=g.race.indexOf(d.id)+1,s=g.spr.indexOf(d.id)+1,x=[q?'квал. '+q:'',r?'гонка '+r:'',s?'спринт '+s:''].filter(Boolean).map(z=>`<i>${z}</i>`).join('');return`<div class="dr"><span>${esc(d.n)}</span><span class="mu">${x}</span><b>${tot(g,d.id)}</b></div>`};
+  const dr=d=>{const q=g.q.indexOf(d.id)+1,r=g.race.indexOf(d.id)+1,s=g.spr.indexOf(d.id)+1,st=raceSt(g,d.id);const raceLbl=st&&st!=='OK'?st:(r?'гонка '+r:'');const x=[q?'квал. '+q:'',raceLbl,s?'спринт '+s:''].filter(Boolean).map(z=>`<i>${z}</i>`).join('');const pts=(st&&st!=='OK')?`<span class="dnf">${st}</span>`:tot(g,d.id);return`<div class="dr"><span>${esc(d.n)}</span><span class="mu">${x}</span><b>${pts}</b></div>`};
   const sub=`этап ${g.r}${g.sp?', спринт':''}`;
   const sc=predScore(g);const predBadge=sc?`<span class="badge ok">прогноз ${sc.score}</span>`:hasPred(g)?`<span class="badge">прогноз</span>`:'';
   return`<div class="card gc" data-act="open" data-id="${g.id}"><div class="gh"><b>${esc(g.n)}${predBadge}</b><span class="mu">${sub}</span></div>${f?B.map(b=>`<div class="tb" style="--c:${b.c}"><div class="tn"><span>${esc(b.n)}</span><span class="mu">за этап</span><b>${b.p}</b><span class="mu">всего ${Y.reduce((a,x)=>a+(x.r<=g.r?tP(b.i,x):0),0)}</span></div>${b.m.map(dr).join('')}</div>`).join(''):`<p class="mu" style="margin:0">${hasPred(g)?'Прогноз сохранён. ':' '}Результатов пока нет. Нажмите, чтобы ввести.</p>`}</div>`}).join('')}
@@ -1138,7 +1175,7 @@ function rebuildPeriods(){
 }
 async function loadGp(g){
  try{const yr=gy(g),b=API+yr+'/'+g.r+'/',miss=new Set();
-  const m=a=>a.map(x=>{
+  const resolve=(x)=>{
    const T=teamIndex(x.Constructor?.name||'');
    let c=findDrivers(x.Driver.givenName,x.Driver.familyName);
    let d=c.find(d=>g.at&&g.at[d.id]===T)||c.find(d=>tm(d,g)===T)||c[0];
@@ -1149,12 +1186,22 @@ async function loadGp(g){
    }
    if(!g.at)g.at={};
    if(T>=0)g.at[d.id]=T;
-   return d.id;
-  });
+   return d;
+  };
+  const m=a=>a.map(x=>resolve(x).id);
   const F=async p=>(await jget(b+p+'.json')).Races[0];
   const[a,q,s]=await Promise.all([F('results'),F('qualifying'),F('sprint').catch(()=>null)]);
   if(!a&&!q){toast('Для этого этапа данных пока нет');return 0}
-  g.at={};if(!g.n||g.n=='Новый гран-при')g.n=(a||q).raceName;const ra=a?.Results||[];g.race=m(ra);g.q=m(q?.QualifyingResults||[]);g.spr=m(s?.SprintResults||[]);if(g.spr.length)g.sp=true;
+  g.at={};g.st={};g.stSpr={};
+  if(!g.n||g.n=='Новый гран-при')g.n=(a||q).raceName;
+  const ra=a?.Results||[];
+  g.race=m(ra);
+  // statuses from race results
+  ra.forEach(x=>{const d=resolve(x);g.st[d.id]=mapApiStatus(x)});
+  g.q=m(q?.QualifyingResults||[]);
+  const sr=s?.SprintResults||[];
+  g.spr=m(sr);if(g.spr.length)g.sp=true;
+  sr.forEach(x=>{const d=resolve(x);g.stSpr[d.id]=mapApiStatus(x)});
   const dup=dedupeDrivers();
   MS.push(...miss);save();render();
   toast((miss.size?'Добавлены: '+[...miss].join(', ')+'. ':'Результаты загружены.')+(dup?' Слито дубликатов: '+dup+'.':''));
