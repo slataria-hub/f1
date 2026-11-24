@@ -108,6 +108,7 @@ textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px 
 .leader .box.champ-box{border:2px solid #d4a017;background:linear-gradient(180deg,rgba(212,160,23,.15),var(--sf))}
 
 
+.dnf{color:#e10600;font-weight:700;font-size:12px;letter-spacing:.02em}
 </style></head><body>
 <div id="app"></div><div id="toast"></div>
 <script>
@@ -252,7 +253,7 @@ function tableView(){
  h+='</tr></thead><tbody>';
  G.forEach(g=>{const f=fl(g);
   h+=`<tr data-act="open" data-id="${g.id}"><th class="s1"><span class="rn">${g.r}</span>${esc(g.n)}${g.sp?'<i>спринт</i>':''}</th>`;
-  AT.forEach(({i})=>{(cols[i]||[]).forEach(d=>h+=`<td>${f?(tm(d,g)==i&&part(g,d.id)?tot(g,d.id):''):'·'}</td>`);h+=`<td class="tt">${f?tP(i,g):'·'}</td>`});
+  AT.forEach(({i})=>{(cols[i]||[]).forEach(d=>h+=`<td>${f?(tm(d,g)==i?(g.race.indexOf(d.id)>=0||g.spr.indexOf(d.id)>=0?tot(g,d.id):(g.q.indexOf(d.id)>=0||(g.at&&g.at[d.id]!=null)?'DNF':'')):''):'·'}</td>`);h+=`<td class="tt">${f?tP(i,g):'·'}</td>`});
   h+='</tr>'});
  h+='</tbody><tfoot><tr><th class="s1">Всего очков</th>';
  AT.forEach(({i})=>{(cols[i]||[]).forEach(d=>h+=`<td>${dTi(d,i)}</td>`);h+=`<td class="tt">${tT(i)}</td>`});
@@ -697,6 +698,14 @@ function h2hView(){
  if(!A||!B)return`<div class="em"><p>Выберите двух пилотов</p></div>`;
  let qA=0,qB=0,rA=0,rB=0,ptsA=0,ptsB=0;
  const rows=[];
+ const status=(g,id)=>{
+  const ri=g.race.indexOf(id),si=g.spr.indexOf(id),qi=g.q.indexOf(id);
+  if(ri>=0)return{pos:ri+1,pts:tot(g,id),fin:true};
+  if(si>=0&&!g.race.length)return{pos:si+1,pts:tot(g,id),fin:true}; // only sprint listed
+  // entered session but not in race classification → DNF/DNS
+  if(qi>=0||si>=0||(g.at&&g.at[id]!=null))return{pos:'DNF',pts:tot(g,id)||0,fin:false};
+  return{pos:'—',pts:'',fin:false};
+ };
  Y.forEach(g=>{
   const qiA=g.q.indexOf(A.id),qiB=g.q.indexOf(B.id);
   const riA=g.race.indexOf(A.id),riB=g.race.indexOf(B.id);
@@ -704,8 +713,11 @@ function h2hView(){
   if(qiA>=0&&qiB>=0){if(qiA<qiB)qA++;else if(qiB<qiA)qB++}
   if(riA>=0&&riB>=0){if(riA<riB)rA++;else if(riB<riA)rB++}
   ptsA+=pA;ptsB+=pB;
-  if(qiA>=0||qiB>=0||riA>=0||riB>=0||pA||pB){
-   rows.push({n:gpShort(g),mark:gpMark(g),qA:qiA>=0?qiA+1:'—',qB:qiB>=0?qiB+1:'—',rA:riA>=0?riA+1:'—',rB:riB>=0?riB+1:'—',pA,pB});
+  const sA=status(g,A.id),sB=status(g,B.id);
+  if(qiA>=0||qiB>=0||riA>=0||riB>=0||pA||pB||sA.pos==='DNF'||sB.pos==='DNF'){
+   rows.push({n:gpShort(g),mark:gpMark(g),
+    qA:qiA>=0?qiA+1:(sA.pos==='DNF'?'—':'—'),qB:qiB>=0?qiB+1:'—',
+    rA:sA.pos,rB:sB.pos,pA:sA.pos==='DNF'&&!pA?'DNF':(sA.pts===''?'':sA.pts),pB:sB.pos==='DNF'&&!pB?'DNF':(sB.pts===''?'':sB.pts)});
   }
  });
  const gLast=Y[Y.length-1]||{at:{}};
@@ -742,7 +754,7 @@ function h2hView(){
  </div>
  <div class="card"><div class="mu" style="margin-bottom:8px">По этапам</div>
   <div class="tw"><table><thead><tr><th class="s1">Этап</th><th style="color:${cA}">Квал<br><span style="font-weight:600;font-size:11px">${esc(surname(A.n))}</span></th><th style="color:${cB}">Квал<br><span style="font-weight:600;font-size:11px">${esc(surname(B.n))}</span></th><th style="color:${cA}">Гонка<br><span style="font-weight:600;font-size:11px">${esc(surname(A.n))}</span></th><th style="color:${cB}">Гонка<br><span style="font-weight:600;font-size:11px">${esc(surname(B.n))}</span></th><th style="color:${cA}">Очки<br><span style="font-weight:600;font-size:11px">${esc(surname(A.n))}</span></th><th style="color:${cB}">Очки<br><span style="font-weight:600;font-size:11px">${esc(surname(B.n))}</span></th></tr></thead>
-  <tbody>${rows.map(r=>`<tr><th class="s1">${r.mark} ${esc(r.n)}</th><td>${r.qA}</td><td>${r.qB}</td><td>${r.rA}</td><td>${r.rB}</td><td>${r.pA||''}</td><td>${r.pB||''}</td></tr>`).join('')}</tbody></table></div>
+  <tbody>${rows.map(r=>{const c=v=>v==='DNF'?'<span class="dnf">DNF</span>':(v===0||v?''+v:'');return`<tr><th class="s1">${r.mark} ${esc(r.n)}</th><td>${c(r.qA)}</td><td>${c(r.qB)}</td><td>${c(r.rA)}</td><td>${c(r.rB)}</td><td>${c(r.pA)}</td><td>${c(r.pB)}</td></tr>`}).join('')}</tbody></table></div>
  </div>`;
 }
 
