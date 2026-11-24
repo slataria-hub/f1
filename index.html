@@ -511,41 +511,59 @@ function h2hView(){
  const active=S.drv.filter(d=>Y.some(g=>part(g,d.id))).sort((a,b)=>dT(b.id)-dT(a.id)||a.n.localeCompare(b.n));
  if(active.length<2)return`<div class="em"><h2>Нужно минимум 2 пилота</h2><p>Загрузите результаты сезона.</p></div>`;
  if(!V.h2hA||!active.find(d=>d.id===V.h2hA))V.h2hA=active[0].id;
- if(!V.h2hB||!active.find(d=>d.id===V.h2hB)||V.h2hB===V.h2hA)V.h2hB=active.find(d=>d.id!==V.h2hA).id;
+ if(!V.h2hB||!active.find(d=>d.id===V.h2hB)||V.h2hB===V.h2hA)V.h2hB=(active.find(d=>d.id!==V.h2hA)||active[1]).id;
  const A=active.find(d=>d.id===V.h2hA),B=active.find(d=>d.id===V.h2hB);
- const opts=active.map(d=>`<option value="${d.id}">${esc(d.n)}</option>`).join('');
- let qA=0,qB=0,rA=0,rB=0,ptsA=0,ptsB=0,both=0;
+ if(!A||!B)return`<div class="em"><p>Выберите двух пилотов</p></div>`;
+ let qA=0,qB=0,rA=0,rB=0,ptsA=0,ptsB=0;
  const rows=[];
  Y.forEach(g=>{
   const qiA=g.q.indexOf(A.id),qiB=g.q.indexOf(B.id);
   const riA=g.race.indexOf(A.id),riB=g.race.indexOf(B.id);
   const pA=tot(g,A.id),pB=tot(g,B.id);
-  if(qiA>=0&&qiB>=0){both++;if(qiA<qiB)qA++;else if(qiB<qiA)qB++}
+  if(qiA>=0&&qiB>=0){if(qiA<qiB)qA++;else if(qiB<qiA)qB++}
   if(riA>=0&&riB>=0){if(riA<riB)rA++;else if(riB<riA)rB++}
   ptsA+=pA;ptsB+=pB;
   if(qiA>=0||qiB>=0||riA>=0||riB>=0||pA||pB){
-   rows.push({n:gpShort(g),qA:qiA>=0?qiA+1:'—',qB:qiB>=0?qiB+1:'—',rA:riA>=0?riA+1:'—',rB:riB>=0?riB+1:'—',pA,pB});
+   rows.push({n:gpShort(g),mark:gpMark(g),qA:qiA>=0?qiA+1:'—',qB:qiB>=0?qiB+1:'—',rA:riA>=0?riA+1:'—',rB:riB>=0?riB+1:'—',pA,pB});
   }
  });
- const cA=dc(A,Y[Y.length-1]||{at:{}}),cB=dc(B,Y[Y.length-1]||{at:{}});
+ const gLast=Y[Y.length-1]||{at:{}};
+ const cA=dc(A,gLast),cB=dc(B,gLast);
+ const optList=(sel)=>active.map(d=>`<option value="${d.id}" ${d.id===sel?'selected':''}>${esc(d.n)} · ${dT(d.id)} очк.</option>`).join('');
+ const chips=(side)=>active.slice(0,12).map(d=>{
+  const on=(side==='a'?V.h2hA:V.h2hB)===d.id;
+  return`<button type="button" data-act="h2hset" data-side="${side}" data-id="${d.id}" class="${on?'pr':''}" style="opacity:${on?1:.85}"><span class="dot" style="background:${dc(d,gLast)}"></span>${esc(surname(d.n))}</button>`;
+ }).join('');
+ const qTot=qA+qB,rTot=rA+rB;
  return`<div class="card">
-  <div class="mu" style="margin-bottom:8px">Сравнение двух пилотов · ${S.year}</div>
-  <div class="h2h-grid">
-   <div class="who"><select data-act="h2ha">${active.map(d=>`<option value="${d.id}" ${d.id===V.h2hA?'selected':''}>${esc(d.n)}</option>`).join('')}</select></div>
-   <b>VS</b>
-   <div class="who"><select data-act="h2hb">${active.map(d=>`<option value="${d.id}" ${d.id===V.h2hB?'selected':''}>${esc(d.n)}</option>`).join('')}</select></div>
+  <div class="mu" style="margin-bottom:10px">Выберите двух пилотов для сравнения · сезон ${S.year}</div>
+  <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:end;margin-bottom:12px">
+   <div>
+    <div class="mu" style="margin-bottom:4px">Пилот 1</div>
+    <select id="h2hSelectA" style="width:100%;font-weight:600;border-color:${cA}">${optList(V.h2hA)}</select>
+   </div>
+   <button type="button" data-act="h2hswap" title="Поменять местами" style="min-width:48px;font-size:18px">⇄</button>
+   <div>
+    <div class="mu" style="margin-bottom:4px">Пилот 2</div>
+    <select id="h2hSelectB" style="width:100%;font-weight:600;border-color:${cB}">${optList(V.h2hB)}</select>
+   </div>
   </div>
-  <div class="h2h-stat"><span style="color:${cA}">${esc(surname(A.n))}</span><span class="mid">Квал.</span><span style="color:${cB}">${esc(surname(B.n))}</span></div>
-  <div class="h2h-stat"><b>${qA}</b><span class="mid">${qA+qB?Math.round(qA/(qA+qB)*100)+'% : '+Math.round(qB/(qA+qB)*100)+'%':'—'}</span><b>${qB}</b></div>
-  <div class="h2h-stat"><span style="color:${cA}">Победы в квал.</span><span class="mid"></span><span style="color:${cB}">Победы в квал.</span></div>
-  <div class="h2h-stat"><b>${rA}</b><span class="mid">Гонка</span><b>${rB}</b></div>
-  <div class="h2h-stat"><b>${ptsA}</b><span class="mid">Очки</span><b>${ptsB}</b></div>
+  <div class="mu" style="margin-bottom:6px">Быстрый выбор · пилот 1</div>
+  <div class="chips" style="margin-bottom:10px">${chips('a')}</div>
+  <div class="mu" style="margin-bottom:6px">Быстрый выбор · пилот 2</div>
+  <div class="chips" style="margin-bottom:12px">${chips('b')}</div>
+  <div class="h2h-stat"><span style="color:${cA};font-weight:700">${esc(A.n)}</span><span class="mid">VS</span><span style="color:${cB};font-weight:700">${esc(B.n)}</span></div>
+  <div class="h2h-stat"><b>${qA}</b><span class="mid">Квалификация${qTot?' · '+Math.round(qA/qTot*100)+'% : '+Math.round(qB/qTot*100)+'%':''}</span><b>${qB}</b></div>
+  <div class="h2h-stat"><b>${rA}</b><span class="mid">Гонка${rTot?' · '+Math.round(rA/rTot*100)+'% : '+Math.round(rB/rTot*100)+'%':''}</span><b>${rB}</b></div>
+  <div class="h2h-stat"><b>${ptsA}</b><span class="mid">Очки за сезон</span><b>${ptsB}</b></div>
+  <div class="bar" style="margin-top:10px;height:12px"><i style="width:${ptsA+ptsB?(ptsA/(ptsA+ptsB)*100):50}%;background:${cA}"></i><i style="width:${ptsA+ptsB?(ptsB/(ptsA+ptsB)*100):50}%;background:${cB}"></i></div>
  </div>
  <div class="card"><div class="mu" style="margin-bottom:8px">По этапам</div>
-  <div class="tw"><table><thead><tr><th class="s1">Этап</th><th>Квал A</th><th>Квал B</th><th>Гонка A</th><th>Гонка B</th><th>Очки A</th><th>Очки B</th></tr></thead>
-  <tbody>${rows.map(r=>`<tr><th class="s1">${esc(r.n)}</th><td>${r.qA}</td><td>${r.qB}</td><td>${r.rA}</td><td>${r.rB}</td><td>${r.pA||''}</td><td>${r.pB||''}</td></tr>`).join('')}</tbody></table></div>
+  <div class="tw"><table><thead><tr><th class="s1">Этап</th><th style="color:${cA}">Квал</th><th style="color:${cB}">Квал</th><th style="color:${cA}">Гонка</th><th style="color:${cB}">Гонка</th><th style="color:${cA}">Очки</th><th style="color:${cB}">Очки</th></tr></thead>
+  <tbody>${rows.map(r=>`<tr><th class="s1">${r.mark} ${esc(r.n)}</th><td>${r.qA}</td><td>${r.qB}</td><td>${r.rA}</td><td>${r.rB}</td><td>${r.pA||''}</td><td>${r.pB||''}</td></tr>`).join('')}</tbody></table></div>
  </div>`;
 }
+
 
 function predChart(done){
  const withPred=done.filter(g=>hasPred(g)&&g.race.length);
@@ -957,6 +975,8 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
  else if(a=='dashi'){V.dashIdx=+d.i;render();return}
  else if(a=='dashf'){V.dashFocus=V.dashFocus===d.id?null:d.id;render();return}
  else if(a=='formw'){V.formWin=+d.v;render();return}
+ else if(a=='h2hset'){if(d.side==='a'){V.h2hA=d.id;if(V.h2hA===V.h2hB){const o=S.drv.find(x=>x.id!==V.h2hA);if(o)V.h2hB=o.id}}else{V.h2hB=d.id;if(V.h2hA===V.h2hB){const o=S.drv.find(x=>x.id!==V.h2hB);if(o)V.h2hA=o.id}}render();return}
+ else if(a=='h2hswap'){const t=V.h2hA;V.h2hA=V.h2hB;V.h2hB=t;render();return}
  else if(a=='expsvg'){exportChart();return}
  else if(a=='exppng'){exportChartPng();return}
  else if(a=='cmpy'){const y=+d.y;if(!V.cmpYears)V.cmpYears=[];if(V.cmpYears.includes(y))V.cmpYears=V.cmpYears.filter(x=>x!==y);else V.cmpYears.push(y);render();return}
@@ -984,8 +1004,8 @@ document.addEventListener('change',e=>{const x=e.target,d=x.dataset,g=V.gp&&gp()
  else if(d.dn)S.drv.find(z=>z.id==d.dn).n=x.value;
  else if(d.sg){const[id,j,f]=d.sg.split(':'),z=S.drv.find(q=>q.id==id).s[j];z[f]=f=='t'?+x.value:x.value===''?null:+x.value}
  else if(d.year){S.year=+x.value;V.dashIdx=null}
- else if(x.getAttribute('data-act')==='h2ha'){V.h2hA=x.value;render();return}
- else if(x.getAttribute('data-act')==='h2hb'){V.h2hB=x.value;render();return}
+ else if(x.id==='h2hSelectA'||x.getAttribute('data-act')==='h2ha'){V.h2hA=x.value;if(V.h2hA===V.h2hB){const o=S.drv.find(z=>z.id!==V.h2hA);if(o)V.h2hB=o.id}render();return}
+ else if(x.id==='h2hSelectB'||x.getAttribute('data-act')==='h2hb'){V.h2hB=x.value;if(V.h2hA===V.h2hB){const o=S.drv.find(z=>z.id!==V.h2hB);if(o)V.h2hA=o.id}render();return}
  else if(x.getAttribute('data-act')==='cmpy'){const y=+x.getAttribute('data-y');if(!V.cmpYears)V.cmpYears=[];if(x.checked){if(!V.cmpYears.includes(y))V.cmpYears.push(y)}else V.cmpYears=V.cmpYears.filter(z=>z!==y);render();return}
  save()});
 boot();
