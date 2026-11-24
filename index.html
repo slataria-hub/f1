@@ -95,6 +95,11 @@ textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px 
 .h2h-stat:last-child{border:0}.h2h-stat .mid{font-weight:700;min-width:56px;text-align:center}
 .export-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .export-row button{font-size:13px}
+.champ-crown{display:inline-block;margin-left:4px;font-size:14px;vertical-align:middle}
+.li.champ{border:2px solid #d4a017;border-radius:10px;padding:8px 8px;margin:4px 0;background:linear-gradient(90deg,rgba(212,160,23,.12),transparent)}
+.li.champ b:first-child{color:#d4a017}
+.leader .box.champ-box{border:2px solid #d4a017;background:linear-gradient(180deg,rgba(212,160,23,.15),var(--sf))}
+
 
 </style></head><body>
 <div id="app"></div><div id="toast"></div>
@@ -111,34 +116,50 @@ async function boot(){
  let local=null;try{local=JSON.parse(localStorage.getItem('f1app'))}catch(e){}
  let shared=null;
  try{const r=await fetch(SHARED,{cache:'no-store'});if(r.ok)shared=await r.json()}catch(e){}
+ const score=o=>{
+  if(!o||!o.gps)return 0;
+  return o.gps.filter(g=>(g.race&&g.race.length)||(g.spr&&g.spr.length)).length;
+ };
  const localOk=local&&local.teams&&(local.gps||[]).length;
  const sharedOk=shared&&shared.teams;
  const localTs=(local&&local.meta&&local.meta.updated)||'';
  const sharedTs=(shared&&shared.meta&&shared.meta.updated)||'';
- if(localOk&&sharedOk&&sharedTs&&(!localTs||sharedTs>localTs)){
-  // shared is newer — take it, keep local predictions if any
+ const localScore=score(local), sharedScore=score(shared);
+ // Prefer shared if it has MORE filled races, or same/more and newer timestamp
+ let used='local';
+ if(sharedOk&&(!localOk || sharedScore>localScore || (sharedScore>=localScore && sharedTs && sharedTs>localTs))){
   S=mig(shared);
   try{
-   if(local.gps){
+   if(localOk&&local.gps){
     const byId={};local.gps.forEach(g=>{if(g.pred&&((g.pred.race&&g.pred.race.length)||(g.pred.spr&&g.pred.spr.length)))byId[g.id]=g.pred});
     S.gps.forEach(g=>{if(byId[g.id]&&!hasPred(g))g.pred=byId[g.id]});
    }
   }catch(e){}
-  save();toast('Обновлены общие данные с сайта (новее локальных)');
- }else if(localOk){S=mig(local)}
- else if(sharedOk){S=mig(shared);save();toast('Загружены общие данные сайта')}
- else if(local&&local.teams){S=mig(local)}
- else{S=init()}
+  save();
+  used='shared';
+  if(localOk&&sharedScore>localScore)toast('Загружены более полные данные с сайта ('+sharedScore+' этапов с результатами)');
+  else if(localOk)toast('Обновлены данные с сайта');
+  else toast('Загружены общие данные сайта');
+ }else if(localOk){S=mig(local);used='local'}
+ else if(sharedOk){S=mig(shared);save();used='shared';toast('Загружены общие данные сайта')}
+ else if(local&&local.teams){S=mig(local);used='local'}
+ else{S=init();used='init'}
+ // Banner hint if shared has more data but we kept local (shouldn't happen with new logic)
+ V._sharedScore=sharedScore;V._localScore=localScore;V._used=used;
  try{dedupeDrivers();rebuildPeriods()}catch(e){}
  if(!S.meta)S.meta={};
  V.booting=false;render()}
+
 function downloadData(){
  const blob=new Blob([JSON.stringify(S)],{type:'application/json'});
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='data.json';a.click();URL.revokeObjectURL(a.href);
  toast('Скачан data.json — положите файл в корень репозитория GitHub и сделайте commit')}
 async function loadShared(){
- try{const r=await fetch(SHARED,{cache:'no-store'});if(!r.ok)throw 0;const o=await r.json();if(!o.teams)throw 0;S=mig(o);save();V.set=false;render();toast('Общие данные с сайта загружены')}
- catch(e){toast('Файл data.json на сайте не найден. Опубликуйте его через «Скачать data.json».')}}
+ try{const r=await fetch(SHARED,{cache:'no-store'});if(!r.ok)throw 0;const o=await r.json();if(!o.teams)throw 0;
+  const n=(o.gps||[]).filter(g=>(g.race&&g.race.length)||(g.spr&&g.spr.length)).length;
+  S=mig(o);if(!S.meta)S.meta={};S.meta.updated=new Date().toISOString();save();V.set=false;render();
+  toast('Данные с сайта загружены: '+n+' этапов с результатами')}
+ catch(e){toast('Файл data.json на сайте не найден. Загрузите его в репозиторий GitHub.')}}
 const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const drs=()=>S.drv,gp=()=>S.gps.find(g=>g.id==V.gp);
 const sn=n=>n.trim().split(' ').pop().slice(0,3).toUpperCase();
@@ -373,18 +394,23 @@ function standView(){
  const T=activeTeams().map(({i,n,c})=>({n,c,p:tT(i),i})).filter(t=>Y.some(g=>S.drv.some(d=>tm(d,g)===t.i&&part(g,d.id)))).sort((a,b)=>b.p-a.p);
  if(!D.length&&!T.length)return`<div class="em"><h2>Нет зачёта за ${S.year}</h2><p>Нужны результаты этапов выбранного сезона.</p></div>`;
  const done=Y.filter(fl).length,total=Y.length,left=Math.max(0,total-done);
- // max points per race weekend: race 25 + sprint 8 = 33 (approx)
  const maxPer=Y.slice(done).reduce((a,g)=>a+(g.sp?33:25),0)||left*25;
  const gap=D.length>1?(D[0].p-D[1].p):0;
+ const remR=maxPtsRemaining().races;
+ const tpD=typeof titlePathDrivers==='function'?titlePathDrivers():{rows:[]};
+ const tpT=typeof titlePathTeams==='function'?titlePathTeams():{rows:[]};
+ const clinchedD=remR===0||(tpD.rows[0]&&tpD.rows[0].needClinch===0);
+ const clinchedT=remR===0||(tpT.rows[0]&&tpT.rows[0].needClinch===0);
  const leaderCard=D.length?`<div class="leader">
-  <div class="box"><div class="lbl">Лидер</div><div class="val" style="color:${D[0].c}">${esc(surname(D[0].n))}</div><div class="sub">${D[0].p} очков</div></div>
+  <div class="box${clinchedD?' champ-box':''}"><div class="lbl">${clinchedD?'Чемпион 👑':'Лидер'}</div><div class="val" style="color:${D[0].c}">${esc(surname(D[0].n))}</div><div class="sub">${D[0].p} очков</div></div>
   <div class="box"><div class="lbl">Отрыв</div><div class="val">${gap===0?'—':'+'+gap}</div><div class="sub">${D.length>1?esc(surname(D[1].n)):''}</div></div>
   <div class="box"><div class="lbl">Осталось этапов</div><div class="val">${left}</div><div class="sub">до ~${maxPer} очков</div></div>
  </div>`:'';
- const lst=A=>A.map((x,i)=>{const df=i===0?'—':(x.p-A[i-1].p);const dfs=df===0?'0':(df>0?'+'+df:String(df));
-  return`<div class="li"><b>${i+1}</b><span class="dot" style="background:${x.c}"></span><span class="nm">${esc(x.n)}${x.sub?`<div class="mu">${esc(x.sub)}</div>`:''}</span><b>${x.p}</b><span class="df">${dfs}</span></div>`}).join('');
+ const lst=(A,isTeam)=>{const crown=isTeam?clinchedT:clinchedD;return A.map((x,i)=>{const df=i===0?'—':(x.p-A[i-1].p);const dfs=df===0?'0':(df>0?'+'+df:String(df));
+  const isChamp=i===0&&crown;
+  return`<div class="li${isChamp?' champ':''}"><b>${i+1}</b><span class="dot" style="background:${x.c}"></span><span class="nm">${esc(x.n)}${isChamp?'<span class="champ-crown" title="Чемпион">👑</span>':''}${x.sub?`<div class="mu">${esc(x.sub)}</div>`:''}</span><b>${x.p}</b><span class="df">${dfs}</span></div>`}).join('')};
  const hd=t=>`<h3 style="margin:0 0 6px;font:700 18px var(--hd)">${t}</h3>`;
- return titlePathCard()+leaderCard+`<div class="card">${hd('Командный зачёт · '+S.year)}${lst(T)}</div><div class="card">${hd('Личный зачёт · '+S.year)}${lst(D)}</div>`}
+ return titlePathCard()+leaderCard+`<div class="card">${hd('Командный зачёт · '+S.year)}${lst(T,true)}</div><div class="card">${hd('Личный зачёт · '+S.year)}${lst(D,false)}</div>`}
 
 function matesView(){const P={},K=(i,x,y)=>i+x.id+y.id;const Y=yearGps();
  S.teams.forEach((t,i)=>{const c=S.drv.filter(d=>Y.some(g=>tm(d,g)===i));if(c.length>1){const pairs=[];for(let a=0;a<c.length;a++)for(let b=a+1;b<c.length;b++)pairs.push([c[a],c[b]]);pairs.forEach(([x,y])=>{P[K(i,x,y)]={i,x,y,a:0,b:0}})}});
