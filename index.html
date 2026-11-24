@@ -675,6 +675,18 @@ function exportChartPng(){
  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
 }
 
+
+function h2hColors(c1,c2){
+ // Always return two clearly different colors for left/right pilot
+ const fallbackA='#f59e0b', fallbackB='#38bdf8';
+ const norm=c=>(c||'').toLowerCase().replace(/\s/g,'');
+ let a=c1||fallbackA, b=c2||fallbackB;
+ if(norm(a)===norm(b) || !c2){
+  // same team (or missing): fixed pair that contrasts on dark UI
+  a=fallbackA; b=fallbackB;
+ }
+ return{a,b};
+}
 function h2hView(){
  const Y=yearGps().filter(fl);
  const active=S.drv.filter(d=>Y.some(g=>part(g,d.id))).sort((a,b)=>dT(b.id)-dT(a.id)||a.n.localeCompare(b.n));
@@ -697,7 +709,7 @@ function h2hView(){
   }
  });
  const gLast=Y[Y.length-1]||{at:{}};
- const cA=dc(A,gLast),cB=dc(B,gLast);
+ const _tcA=dc(A,gLast),_tcB=dc(B,gLast);const {a:cA,b:cB}=h2hColors(_tcA,_tcB);
  const optList=(sel)=>active.map(d=>`<option value="${d.id}" ${d.id===sel?'selected':''}>${esc(d.n)} · ${dT(d.id)} очк.</option>`).join('');
  const chips=(side)=>active.slice(0,12).map(d=>{
   const on=(side==='a'?V.h2hA:V.h2hB)===d.id;
@@ -725,10 +737,11 @@ function h2hView(){
   <div class="h2h-stat"><b>${qA}</b><span class="mid">Квалификация${qTot?' · '+Math.round(qA/qTot*100)+'% : '+Math.round(qB/qTot*100)+'%':''}</span><b>${qB}</b></div>
   <div class="h2h-stat"><b>${rA}</b><span class="mid">Гонка${rTot?' · '+Math.round(rA/rTot*100)+'% : '+Math.round(rB/rTot*100)+'%':''}</span><b>${rB}</b></div>
   <div class="h2h-stat"><b>${ptsA}</b><span class="mid">Очки за сезон</span><b>${ptsB}</b></div>
-  <div class="bar" style="margin-top:10px;height:12px"><i style="width:${ptsA+ptsB?(ptsA/(ptsA+ptsB)*100):50}%;background:${cA}"></i><i style="width:${ptsA+ptsB?(ptsB/(ptsA+ptsB)*100):50}%;background:${cB}"></i></div>
+  <div class="bar" style="margin-top:10px;height:14px"><i style="width:${ptsA+ptsB?(ptsA/(ptsA+ptsB)*100):50}%;background:${cA}"></i><i style="width:${ptsA+ptsB?(ptsB/(ptsA+ptsB)*100):50}%;background:${cB}"></i></div>
+  <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px"><span style="color:${cA}">● ${esc(surname(A.n))}</span><span style="color:${cB}">● ${esc(surname(B.n))}</span></div>
  </div>
  <div class="card"><div class="mu" style="margin-bottom:8px">По этапам</div>
-  <div class="tw"><table><thead><tr><th class="s1">Этап</th><th style="color:${cA}">Квал</th><th style="color:${cB}">Квал</th><th style="color:${cA}">Гонка</th><th style="color:${cB}">Гонка</th><th style="color:${cA}">Очки</th><th style="color:${cB}">Очки</th></tr></thead>
+  <div class="tw"><table><thead><tr><th class="s1">Этап</th><th style="color:${cA}">Квал<br><span style="font-weight:600;font-size:11px">${esc(surname(A.n))}</span></th><th style="color:${cB}">Квал<br><span style="font-weight:600;font-size:11px">${esc(surname(B.n))}</span></th><th style="color:${cA}">Гонка<br><span style="font-weight:600;font-size:11px">${esc(surname(A.n))}</span></th><th style="color:${cB}">Гонка<br><span style="font-weight:600;font-size:11px">${esc(surname(B.n))}</span></th><th style="color:${cA}">Очки<br><span style="font-weight:600;font-size:11px">${esc(surname(A.n))}</span></th><th style="color:${cB}">Очки<br><span style="font-weight:600;font-size:11px">${esc(surname(B.n))}</span></th></tr></thead>
   <tbody>${rows.map(r=>`<tr><th class="s1">${r.mark} ${esc(r.n)}</th><td>${r.qA}</td><td>${r.qB}</td><td>${r.rA}</td><td>${r.rB}</td><td>${r.pA||''}</td><td>${r.pB||''}</td></tr>`).join('')}</tbody></table></div>
  </div>`;
 }
