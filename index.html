@@ -94,17 +94,32 @@ function init(){let n=0;return{year:2026,gps:[],teams:T0.map(t=>({n:t[0],c:t[1]}
 function mig(o){if(!o.drv){o.drv=o.teams.flatMap((t,i)=>t.d.map(d=>({id:d.id,n:d.n,s:[{t:i,f:1,u:null}]})));o.teams.forEach(t=>delete t.d)}if(o.gps)o.gps.forEach(g=>{if(g.y==null)g.y=o.year||2025});return o}
 let S=init();
 const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'d',dashKind:'pts',dashIdx:null,dashFocus:null,booting:true};
-const save=()=>{try{localStorage.setItem('f1app',JSON.stringify(S))}catch(e){}};
+const save=()=>{try{if(!S.meta)S.meta={};S.meta.updated=new Date().toISOString();localStorage.setItem('f1app',JSON.stringify(S))}catch(e){}};
 const SHARED='./data.json';
 async function boot(){
  let local=null;try{local=JSON.parse(localStorage.getItem('f1app'))}catch(e){}
  let shared=null;
  try{const r=await fetch(SHARED,{cache:'no-store'});if(r.ok)shared=await r.json()}catch(e){}
- if(local&&local.teams&&(local.gps||[]).length){S=mig(local)}
- else if(shared&&shared.teams){S=mig(shared);save();toast('Загружены общие данные сайта')}
+ const localOk=local&&local.teams&&(local.gps||[]).length;
+ const sharedOk=shared&&shared.teams;
+ const localTs=(local&&local.meta&&local.meta.updated)||'';
+ const sharedTs=(shared&&shared.meta&&shared.meta.updated)||'';
+ if(localOk&&sharedOk&&sharedTs&&(!localTs||sharedTs>localTs)){
+  // shared is newer — take it, keep local predictions if any
+  S=mig(shared);
+  try{
+   if(local.gps){
+    const byId={};local.gps.forEach(g=>{if(g.pred&&((g.pred.race&&g.pred.race.length)||(g.pred.spr&&g.pred.spr.length)))byId[g.id]=g.pred});
+    S.gps.forEach(g=>{if(byId[g.id]&&!hasPred(g))g.pred=byId[g.id]});
+   }
+  }catch(e){}
+  save();toast('Обновлены общие данные с сайта (новее локальных)');
+ }else if(localOk){S=mig(local)}
+ else if(sharedOk){S=mig(shared);save();toast('Загружены общие данные сайта')}
  else if(local&&local.teams){S=mig(local)}
  else{S=init()}
- try{dedupeDrivers()}catch(e){}
+ try{dedupeDrivers();rebuildPeriods()}catch(e){}
+ if(!S.meta)S.meta={};
  V.booting=false;render()}
 function downloadData(){
  const blob=new Blob([JSON.stringify(S)],{type:'application/json'});
@@ -391,6 +406,57 @@ function rankingChart(done,mode){
  }
  return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" id="chartSvg">${grid}${hits}${paths}${dots}${cursor}${labels}</svg>${tip}</div>${flagsRow(done,idx,padL,padR,W)}</div>${standPanel(mark,gpShort(gAt),gAt.r,rows)}</div>`}
 
+
+function formChart(done,mode){
+ const n=done.length;if(n<1)return'<p class="mu">Нет данных</p>';
+ const window=Math.min(5,n);
+ const last=done.slice(-window);
+ const isDrv=mode==='d';
+ const series=[];
+ if(isDrv){
+  S.drv.forEach(d=>{
+   if(!last.some(g=>part(g,d.id)))return;
+   let col='#8b95a5';
+   for(let i=done.length-1;i>=0;i--){const t=tm(d,done[i]);if(t>=0&&part(done[i],d.id)){col=S.teams[t]?S.teams[t].c:col;break}}
+   const pts=last.map(g=>tot(g,d.id));
+   const sum=pts.reduce((a,b)=>a+b,0);
+   series.push({id:d.id,n:d.n,label:surname(d.n),c:col,pts,sum});
+  });
+ }else{
+  activeTeams().forEach(({i,n,c})=>{
+   const pts=last.map(g=>tP(i,g));
+   const sum=pts.reduce((a,b)=>a+b,0);
+   if(sum>0||last.some(g=>S.drv.some(d=>tm(d,g)===i&&part(g,d.id))))series.push({id:'t'+i,n,label:n,c,pts,sum});
+  });
+ }
+ series.sort((a,b)=>b.sum-a.sum);
+ const maxY=Math.max(...series.flatMap(s=>s.pts),5);
+ const stepY=maxY<=20?5:maxY<=50?10:maxY<=100?20:25;
+ const yMax=Math.ceil(maxY/stepY)*stepY||stepY;
+ const W=Math.max(640,last.length*90+80),H=380,padL=44,padR=16,padT=16,padB=48;
+ const groupW=(W-padL-padR)/last.length;
+ const barW=Math.min(14, (groupW*0.7)/Math.max(series.length,1));
+ const xG=i=>padL+groupW*i+groupW/2;
+ const y=v=>padT+(H-padT-padB)*(1-v/yMax);
+ let grid='';
+ for(let v=0;v<=yMax;v+=stepY)grid+=`<line x1="${padL}" y1="${y(v)}" x2="${W-padR}" y2="${y(v)}" stroke="#1c2430" stroke-width="1"/><text x="${padL-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="#8b95a5" font-family="system-ui,sans-serif">${v}</text>`;
+ let bars='',labels='';
+ last.forEach((g,gi)=>{
+  const gx=xG(gi);
+  labels+=`<text x="${gx}" y="${H-18}" text-anchor="middle" font-size="11" fill="#c8d0dc" font-family="system-ui,sans-serif">${gpMark(g)}</text>`;
+  series.forEach((s,si)=>{
+   const p=s.pts[gi]||0;
+   const bx=gx-(series.length*barW)/2+si*barW;
+   const by=y(p),bh=Math.max(0,y(0)-by);
+   bars+=`<rect x="${bx}" y="${by}" width="${Math.max(barW-1,2)}" height="${bh}" fill="${s.c}" opacity=".9" rx="2"><title>${esc(s.label)} · ${gpShort(g)}: ${p}</title></rect>`;
+  });
+ });
+ const stand=series.map(s=>({n:s.label,c:s.c,p:s.sum})).sort((a,b)=>b.p-a.p);
+ const rows=stand.map((s,i)=>`<div class="row"><b>${i+1}</b><span class="nm" style="color:${s.c}" title="${esc(s.n)}">${esc(s.n)}</span><span class="pt">${s.p}</span></div>`).join('');
+ const titleMark='Форма';
+ return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${bars}${labels}</svg></div><div class="mu" style="text-align:center;margin-top:6px">Очки за последние ${window} этапов · ${S.year}</div></div>${standPanel('Σ','Сумма за окно',window,rows)}</div>`;
+}
+
 function dashView(){
  const done=yearGps().filter(fl);
  if(done.length<1)return`<div class="em"><h2>Нет результатов за ${S.year}</h2><p>Загрузите или введите результаты этапов сезона.</p></div>`;
@@ -398,14 +464,16 @@ function dashView(){
  const mode=V.dashMode||'d',kind=V.dashKind||'pts';
  const title=kind==='rank'
   ?(mode==='d'?'Эволюция мест пилотов':'Эволюция мест команд')
+  :kind==='form'
+  ?(mode==='d'?'Форма пилотов (последние этапы)':'Форма команд (последние этапы)')
   :(mode==='d'?'Эволюция очков пилотов':'Эволюция очков команд');
  return`<div class="dash-card">
  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-  <div class="seg" style="margin:0;flex:1;min-width:160px"><button class="${kind==='pts'?'on':''}" data-act="dashk" data-v="pts">Очки</button><button class="${kind==='rank'?'on':''}" data-act="dashk" data-v="rank">Места</button></div>
+  <div class="seg" style="margin:0;flex:1;min-width:200px"><button class="${kind==='pts'?'on':''}" data-act="dashk" data-v="pts">Очки</button><button class="${kind==='rank'?'on':''}" data-act="dashk" data-v="rank">Места</button><button class="${kind==='form'?'on':''}" data-act="dashk" data-v="form">Форма</button></div>
   <div class="seg" style="margin:0;flex:1;min-width:160px"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>
  </div>
  <div class="dash-title">${title}</div>
- ${kind==='rank'?rankingChart(done,mode):pointsChart(done,mode)}</div>`}
+ ${kind==='rank'?rankingChart(done,mode):kind==='form'?formChart(done,mode):pointsChart(done,mode)}</div>`}
 
 function gpView(){
  const g=gp(),k=V.mode;
@@ -464,9 +532,10 @@ function setView(){
  ${S.drv.map(d=>`<div class="card"><div class="row"><input type="text" data-dn="${d.id}" value="${esc(d.n)}"><button class="dg n" data-act="delp" data-id="${d.id}">${V.dd==d.id?'Точно?':'Удалить'}</button></div>${dup(d)?'<div class="mu" style="color:#d33;margin-bottom:6px">Есть другой пилот с такой же фамилией. Автозагрузка кладёт результаты только одному из них. Оставьте одну запись и задайте ей несколько периодов.</div>':''}${d.s.map((z,j)=>`<div class="rr"><select data-sg="${d.id}:${j}:t">${op(z.t)}</select><input type="number" data-sg="${d.id}:${j}:f" value="${z.f}" aria-label="С этапа"><input type="number" data-sg="${d.id}:${j}:u" value="${z.u??''}" placeholder="по этап" aria-label="По этап"></div>`).join('')}<button data-act="addp" data-id="${d.id}">Сменить команду</button></div>`).join('')}
  <button class="pr" data-act="newd">+ Добавить пилота</button>
  <div class="card gap"><div class="mu" style="margin-bottom:8px">Общие данные сайта (для всех посетителей)</div>
+ <div class="mu" style="margin-bottom:8px">Локально: <b id="metaLocal">—</b><br>На сайте: <b id="metaShared">—</b></div>
  <button class="pr" data-act="publish" style="width:100%">Скачать data.json для публикации</button>
- <button data-act="loadshared" style="width:100%;margin-top:6px">Загрузить общие данные с сайта</button>
- <div class="mu" style="margin-top:6px">После загрузки результатов на компьютере нажмите «Скачать data.json», загрузите файл в корень репозитория GitHub (рядом с index.html) и сделайте commit. Тогда данные увидят все, в том числе с телефона.</div></div>
+ <button data-act="loadshared" style="width:100%;margin-top:6px">Подтянуть общие данные с сайта</button>
+ <div class="mu" style="margin-top:6px">1) На любом устройстве загрузите/введите результаты.<br>2) «Скачать data.json» → положите файл в корень репозитория (рядом с index.html) → commit &amp; push.<br>3) У всех остальных при открытии сайта подтянутся более новые данные автоматически (или кнопкой выше).<br>Для полного автообновления без ручного commit добавьте GitHub Action (см. README).</div></div>
  <div class="card gap"><div class="mu" style="margin-bottom:8px">Резервная копия</div><div class="row"><button data-act="show">Показать копию</button><button data-act="restore">Восстановить из текста</button></div><textarea id="bk" placeholder="Скопируйте сюда текст копии, чтобы восстановить"></textarea></div></div>`}
 
 function bindChartZoom(){
@@ -483,7 +552,10 @@ function bindChartZoom(){
  box.addEventListener('pointermove',e=>{if(!drag)return;const r=svg.getBoundingClientRect(),vb=svg.viewBox.baseVal;tx=drag.ox+(e.clientX-drag.x)/r.width*vb.width;ty=drag.oy+(e.clientY-drag.y)/r.height*vb.height;apply()});
  box.addEventListener('pointerup',()=>{drag=null});
  box.addEventListener('dblclick',()=>{scale=1;tx=0;ty=0;apply()})}
-function render(){const o=$('.sheet'),st=o?o.scrollTop:0;$('#app').innerHTML=(V.gp?gpView():mainView())+(V.set?setView():'');const n=$('.sheet');if(n)n.scrollTop=st;if(V.tab==='dash'&&!V.gp)bindChartZoom()}
+function render(){const o=$('.sheet'),st=o?o.scrollTop:0;$('#app').innerHTML=(V.gp?gpView():mainView())+(V.set?setView():'');const n=$('.sheet');if(n)n.scrollTop=st;if(V.tab==='dash'&&!V.gp)bindChartZoom();
+ if(V.set){const el=$('#metaLocal');if(el)el.textContent=(S.meta&&S.meta.updated)?S.meta.updated.replace('T',' ').slice(0,19):'нет';
+  fetch(SHARED,{cache:'no-store'}).then(r=>r.ok?r.json():null).then(o=>{const e=$('#metaShared');if(e)e.textContent=(o&&o.meta&&o.meta.updated)?o.meta.updated.replace('T',' ').slice(0,19):'нет / старый формат'}).catch(()=>{const e=$('#metaShared');if(e)e.textContent='не удалось'})}
+}
 
 const norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const API='https://api.jolpi.ca/ergast/f1/';
