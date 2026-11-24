@@ -95,6 +95,13 @@ textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px 
 .h2h-stat:last-child{border:0}.h2h-stat .mid{font-weight:700;min-width:56px;text-align:center}
 .export-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .export-row button{font-size:13px}
+.dash-toolbar{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.dash-kinds{display:flex;flex-wrap:wrap;gap:6px;margin:0;width:100%}
+.dash-kinds button{flex:1 1 auto;min-width:72px}
+.dash-sub{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.dash-sub .seg{margin:0}
+.dash-card .seg{overflow:visible}
+
 .champ-crown{display:inline-block;margin-left:4px;font-size:14px;vertical-align:middle}
 .li.champ{border:2px solid #d4a017;border-radius:10px;padding:8px 8px;margin:4px 0;background:linear-gradient(90deg,rgba(212,160,23,.12),transparent)}
 .li.champ b:first-child{color:#d4a017}
@@ -832,8 +839,8 @@ function dashView(){
   :pointsChart(done,mode);
  const canExport=kind!=='h2h';
  return`<div class="dash-card">
- <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-  <div class="seg" style="margin:0;flex:1;min-width:260px">
+ <div class="dash-toolbar">
+  <div class="seg dash-kinds">
    <button class="${kind==='pts'?'on':''}" data-act="dashk" data-v="pts">Очки</button>
    <button class="${kind==='rank'?'on':''}" data-act="dashk" data-v="rank">Места</button>
    <button class="${kind==='form'?'on':''}" data-act="dashk" data-v="form">Форма</button>
@@ -841,8 +848,10 @@ function dashView(){
    <button class="${kind==='h2h'?'on':''}" data-act="dashk" data-v="h2h">VS</button>
    <button class="${kind==='compare'?'on':''}" data-act="dashk" data-v="compare">Годы</button>
   </div>
-  ${showMode?`<div class="seg" style="margin:0;min-width:140px"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>`:''}
-  ${showFormWin?`<div class="seg" style="margin:0;min-width:160px"><button class="${(V.formWin||5)===3?'on':''}" data-act="formw" data-v="3">3 этапа</button><button class="${(V.formWin||5)===5?'on':''}" data-act="formw" data-v="5">5</button><button class="${(V.formWin||5)===10?'on':''}" data-act="formw" data-v="10">10</button></div>`:''}
+  ${showMode||showFormWin?`<div class="dash-sub">
+   ${showMode?`<div class="seg"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>`:''}
+   ${showFormWin?`<div class="seg"><button class="${(V.formWin||5)===3?'on':''}" data-act="formw" data-v="3">3 этапа</button><button class="${(V.formWin||5)===5?'on':''}" data-act="formw" data-v="5">5</button><button class="${(V.formWin||5)===10?'on':''}" data-act="formw" data-v="10">10</button></div>`:''}
+  </div>`:''}
  </div>
  <div class="dash-title">${title}${kind==='form'?' · последние '+(V.formWin||5):''}</div>
  ${body}
