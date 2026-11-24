@@ -198,7 +198,7 @@ function hasPred(g){return g.pred&&((g.pred.race&&g.pred.race.length)||(g.pred.s
 
 function tableView(){
  const G=yearGps();
- if(!G.length)return`<div class="em"><h2>Нет гран-при за ${S.year}</h2><p>Переключите год стрелками или загрузите расписание сезона.</p><button class="pr" data-act="new">Добавить гран-при</button> <button data-act="set">Загрузить расписание</button></div>`;
+ if(!G.length)return`<div class="em"><h2>Нет гран-при за ${S.year}</h2><p>Расписание этого сезона ещё не загружено.</p><button class="pr" data-act="sched">Загрузить расписание ${S.year}</button><p class="mu" style="margin-top:12px">Или добавьте этап вручную</p><button data-act="new">+ Гран-при</button></div>`;
  const hasRes=G.some(fl);
  const AT=activeTeams();
  const cols={};
@@ -503,7 +503,7 @@ function gpView(){
 
 function gpsView(){
  const Y=yearGps();
- if(!Y.length)return`<div class="em"><h2>Нет гран-при за ${S.year}</h2><p>Переключите год стрелками в шапке или загрузите расписание.</p><button class="pr" data-act="new">Добавить гран-при</button> <button data-act="set">Настройки</button></div>`;
+ if(!Y.length)return`<div class="em"><h2>Нет гран-при за ${S.year}</h2><p>Расписание сезона ещё не загружено. Нажмите кнопку — этапы подтянутся из официальной базы F1.</p><button class="pr" data-act="sched">Загрузить расписание ${S.year}</button><p class="mu" style="margin-top:14px">Если год ещё не опубликован в базе — появится сообщение. Можно добавить этапы вручную.</p><button data-act="new">+ Добавить гран-при вручную</button></div>`;
  const A=[...Y].sort((a,b)=>(!fl(a)-!fl(b))||(fl(a)?b.r-a.r:a.r-b.r));
  return A.map(g=>{const f=fl(g),B=activeTeams().map(({i,n,c})=>({n,c,i,m:S.drv.filter(d=>tm(d,g)==i&&(!f||part(g,d.id))),p:tP(i,g)})).filter(b=>b.m.length);
   if(f)B.sort((a,b)=>b.p-a.p);
@@ -522,7 +522,9 @@ function setView(){
  const dup=d=>S.drv.some(z=>z!==d&&norm(z.n.split(' ').pop())==norm(d.n.split(' ').pop()));
  const op=v=>S.teams.map((t,i)=>`<option value="${i}"${i==v?' selected':''}>${esc(t.n)}</option>`).join('');
  return`<div class="sheet"><div class="row"><h2 style="margin:0;font:700 22px var(--hd)">Настройки</h2><button class="n" data-act="x">Готово</button></div>
- <div class="card"><div class="mu">Сезон</div><div class="row"><input type="number" data-year="1" value="${S.year}"><button data-act="sched">Только расписание</button></div><button class="pr" data-act="sync" style="width:100%;margin-top:4px">Загрузить расписание и все результаты</button><div class="mu" style="margin-top:6px">Загрузит все этапы сезона и результаты уже прошедших. Этапы с введёнными результатами не изменяются.</div>
+ <div class="card"><div class="mu">Сезон</div><div class="row"><input type="number" data-year="1" value="${S.year}"><button data-act="sched">Расписание ${S.year}</button></div>
+<button class="pr" data-act="sync" style="width:100%;margin-top:4px">Расписание + результаты ${S.year}</button>
+<div class="mu" style="margin-top:6px">«Расписание» — только список гран-при (удобно для будущих сезонов).<br>«Расписание + результаты» — ещё и финиши уже прошедших этапов. Ваши введённые результаты не затираются.</div>
  <button data-act="hist" style="width:100%;margin-top:10px">Загрузить историю с 2020 года</button><div class="mu" style="margin-top:6px">Добавит все завершённые гран-при с 2020 по текущий год. Уже заполненные этапы не перезаписываются. Загрузка займёт несколько минут.</div>
  <button data-act="fixteams" style="width:100%;margin-top:10px">Исправить привязку пилотов к командам</button><div class="mu" style="margin-top:6px">Перезагрузит результаты всех этапов и заново сопоставит пилотов с командами (AlphaTauri→Racing Bulls, Sauber→Audi и т.д.). Нужно, если колонки команд выглядят неправильно.</div>
  <button data-act="dedupe" style="width:100%;margin-top:10px">Удалить дубликаты пилотов</button><div class="mu" style="margin-top:6px">Сливает повторяющиеся записи (например несколько «de Vries» → один пилот) и чистит периоды.</div>
@@ -580,10 +582,31 @@ function teamIndex(name){
 }
 async function jget(u){const r=await fetch(u);if(!r.ok)throw new Error(r.status);return(await r.json()).MRData.RaceTable}
 async function sched(){
- try{const T=await jget(API+S.year+'.json');let n=0;
-  T.Races.forEach(r=>{if(S.gps.some(g=>g.r==+r.round&&gy(g)==S.year))return;S.gps.push({id:'g'+r.round+Date.now(),n:r.raceName,r:+r.round,y:S.year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]}});n++});
-  S.gps=sortGps(S.gps);save();V.set=false;render();toast('Добавлено гран-при: '+n)}
- catch(e){toast('Не удалось связаться с базой F1. В предпросмотре это заблокировано; на GitHub Pages должно работать.')}}
+ try{
+  toast('Загружаю расписание '+S.year+'…');
+  const T=await jget(API+S.year+'.json');
+  if(!T.Races||!T.Races.length){toast('В базе F1 пока нет расписания на '+S.year);return}
+  let n=0,upd=0;
+  T.Races.forEach(r=>{
+   let g=S.gps.find(x=>x.r==+r.round&&gy(x)==S.year);
+   if(g){
+    if(!g.n||g.n==='Новый гран-при')g.n=r.raceName;
+    if(r.date)g.d=r.date;
+    if(r.Sprint)g.sp=true;
+    g.y=S.year;
+    upd++;
+    return;
+   }
+   S.gps.push({id:'g'+S.year+'r'+r.round+Date.now(),n:r.raceName,r:+r.round,y:S.year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]},d:r.date||null});
+   n++;
+  });
+  S.gps=sortGps(S.gps);save();V.set=false;render();
+  toast(n?'Добавлено гран-при: '+n+(upd?' · обновлено: '+upd:''):'Все этапы уже есть'+(upd?' · обновлено названий/дат: '+upd:''));
+ }catch(e){
+  const msg=String(e&&e.message||e);
+  if(msg==='404'||msg.includes('404'))toast('Расписание '+S.year+' ещё не опубликовано в базе F1. Попробуйте позже или добавьте этапы вручную.');
+  else toast('Не удалось загрузить расписание. Проверьте интернет. На GitHub Pages обычно работает.');
+ }}
 let MS=[];
 async function syncAll(){
  try{toast('Загружаю расписание…');const T=await jget(API+S.year+'.json');
@@ -732,8 +755,8 @@ async function loadGp(g){
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const d=b.dataset,a=d.act,g=V.gp&&gp(),i=+d.i;
  const L=g&&(V.mode=='r'?g.race:V.mode=='s'?g.spr:V.mode=='q'?g.q:(ensurePred(g).race));if(a!='del')V.del=false;if(a!='delp')V.dd=null;
  if(a=='tab')V.tab=d.v;else if(a=='open'){V.gp=d.id;V.mode='r'}else if(a=='back')V.gp=null;else if(a=='mode')V.mode=d.v;
- else if(a=='yprev'){S.year=S.year-1;V.dashIdx=null;save()}
- else if(a=='ynext'){S.year=S.year+1;V.dashIdx=null;save()}
+ else if(a=='yprev'){S.year=S.year-1;V.dashIdx=null;save();if(!yearGps().length)setTimeout(()=>sched(),100)}
+ else if(a=='ynext'){S.year=S.year+1;V.dashIdx=null;save();if(!yearGps().length)setTimeout(()=>sched(),100)}
  else if(a=='dashm'){V.dashMode=d.v;V.dashFocus=null;render();return}
  else if(a=='dashk'){V.dashKind=d.v;V.dashFocus=null;render();return}
  else if(a=='dashi'){V.dashIdx=+d.i;render();return}
