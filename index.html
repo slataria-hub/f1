@@ -85,6 +85,17 @@ textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px 
 .cmp{display:grid;grid-template-columns:28px 1fr auto auto;gap:6px 10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--ln);font-variant-numeric:tabular-nums}
 .cmp:last-child{border:0}.cmp .delta{min-width:36px;text-align:right;font-weight:600}.cmp .delta.up{color:#1a9a52}.cmp .delta.dn{color:#d33}.cmp .act{color:var(--mu);min-width:28px;text-align:right}
 .score-box{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:8px}.score-box b{font:700 18px var(--hd)}.score-box span{color:var(--mu);font-size:13px}
+.leader{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px}
+.leader .box{background:var(--sf);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;text-align:center}
+.leader .box .lbl{font-size:12px;color:var(--mu);margin-bottom:4px}
+.leader .box .val{font:700 20px var(--hd)}.leader .box .sub{font-size:12px;color:var(--mu);margin-top:2px}
+.h2h-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin:10px 0}
+.h2h-grid .who{text-align:center}.h2h-grid .who b{display:block;font:700 16px var(--hd)}
+.h2h-stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--ln);font-variant-numeric:tabular-nums}
+.h2h-stat:last-child{border:0}.h2h-stat .mid{font-weight:700;min-width:56px;text-align:center}
+.export-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.export-row button{font-size:13px}
+
 </style></head><body>
 <div id="app"></div><div id="toast"></div>
 <script>
@@ -93,7 +104,7 @@ const T0=[["McLaren","#ff8000","Lando Norris","Oscar Piastri"],["Ferrari","#e800
 function init(){let n=0;return{year:2026,gps:[],teams:T0.map(t=>({n:t[0],c:t[1]})),drv:T0.flatMap((t,i)=>[t[2],t[3]].map(x=>({id:'d'+n++,n:x,s:[{t:i,f:1,u:null}]})))}}
 function mig(o){if(!o.drv){o.drv=o.teams.flatMap((t,i)=>t.d.map(d=>({id:d.id,n:d.n,s:[{t:i,f:1,u:null}]})));o.teams.forEach(t=>delete t.d)}if(o.gps)o.gps.forEach(g=>{if(g.y==null)g.y=o.year||2025});return o}
 let S=init();
-const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'d',dashKind:'pts',dashIdx:null,dashFocus:null,booting:true};
+const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'d',dashKind:'pts',dashIdx:null,dashFocus:null,formWin:5,h2hA:null,h2hB:null,cmpYears:[],booting:true};
 const save=()=>{try{if(!S.meta)S.meta={};S.meta.updated=new Date().toISOString();localStorage.setItem('f1app',JSON.stringify(S))}catch(e){}};
 const SHARED='./data.json';
 async function boot(){
@@ -222,13 +233,22 @@ function tableView(){
 function standView(){
  const Y=yearGps();
  const teamOf=d=>{for(let i=Y.length-1;i>=0;i--){const t=tm(d,Y[i]);if(t>=0&&part(Y[i],d.id))return t}return last(d)};
- const D=S.drv.filter(d=>Y.some(g=>part(g,d.id))).map(d=>{const ti=teamOf(d);return{n:d.n,c:ti>=0&&S.teams[ti]?S.teams[ti].c:'#888',sub:ti>=0?teamName(ti):'',p:dT(d.id)}}).sort((a,b)=>b.p-a.p);
+ const D=S.drv.filter(d=>Y.some(g=>part(g,d.id))).map(d=>{const ti=teamOf(d);return{id:d.id,n:d.n,c:ti>=0&&S.teams[ti]?S.teams[ti].c:'#888',sub:ti>=0?teamName(ti):'',p:dT(d.id)}}).sort((a,b)=>b.p-a.p);
  const T=activeTeams().map(({i,n,c})=>({n,c,p:tT(i),i})).filter(t=>Y.some(g=>S.drv.some(d=>tm(d,g)===t.i&&part(g,d.id)))).sort((a,b)=>b.p-a.p);
  if(!D.length&&!T.length)return`<div class="em"><h2>Нет зачёта за ${S.year}</h2><p>Нужны результаты этапов выбранного сезона.</p></div>`;
+ const done=Y.filter(fl).length,total=Y.length,left=Math.max(0,total-done);
+ // max points per race weekend: race 25 + sprint 8 = 33 (approx)
+ const maxPer=Y.slice(done).reduce((a,g)=>a+(g.sp?33:25),0)||left*25;
+ const gap=D.length>1?(D[0].p-D[1].p):0;
+ const leaderCard=D.length?`<div class="leader">
+  <div class="box"><div class="lbl">Лидер</div><div class="val" style="color:${D[0].c}">${esc(surname(D[0].n))}</div><div class="sub">${D[0].p} очков</div></div>
+  <div class="box"><div class="lbl">Отрыв</div><div class="val">${gap===0?'—':'+'+gap}</div><div class="sub">${D.length>1?esc(surname(D[1].n)):''}</div></div>
+  <div class="box"><div class="lbl">Осталось этапов</div><div class="val">${left}</div><div class="sub">до ~${maxPer} очков</div></div>
+ </div>`:'';
  const lst=A=>A.map((x,i)=>{const df=i===0?'—':(x.p-A[i-1].p);const dfs=df===0?'0':(df>0?'+'+df:String(df));
   return`<div class="li"><b>${i+1}</b><span class="dot" style="background:${x.c}"></span><span class="nm">${esc(x.n)}${x.sub?`<div class="mu">${esc(x.sub)}</div>`:''}</span><b>${x.p}</b><span class="df">${dfs}</span></div>`}).join('');
  const hd=t=>`<h3 style="margin:0 0 6px;font:700 18px var(--hd)">${t}</h3>`;
- return`<div class="card">${hd('Командный зачёт · '+S.year)}${lst(T)}</div><div class="card">${hd('Личный зачёт · '+S.year)}${lst(D)}</div>`}
+ return leaderCard+`<div class="card">${hd('Командный зачёт · '+S.year)}${lst(T)}</div><div class="card">${hd('Личный зачёт · '+S.year)}${lst(D)}</div>`}
 
 function matesView(){const P={},K=(i,x,y)=>i+x.id+y.id;const Y=yearGps();
  S.teams.forEach((t,i)=>{const c=S.drv.filter(d=>Y.some(g=>tm(d,g)===i));if(c.length>1){const pairs=[];for(let a=0;a<c.length;a++)for(let b=a+1;b<c.length;b++)pairs.push([c[a],c[b]]);pairs.forEach(([x,y])=>{P[K(i,x,y)]={i,x,y,a:0,b:0}})}});
@@ -409,7 +429,7 @@ function rankingChart(done,mode){
 
 function formChart(done,mode){
  const n=done.length;if(n<1)return'<p class="mu">Нет данных</p>';
- const window=Math.min(5,n);
+ const window=Math.min(V.formWin||5,n);
  const last=done.slice(-window);
  const isDrv=mode==='d';
  const series=[];
@@ -457,23 +477,197 @@ function formChart(done,mode){
  return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" id="chartSvg">${grid}${bars}${labels}</svg></div><div class="mu" style="text-align:center;margin-top:6px">Очки за последние ${window} этапов · ${S.year}</div></div>${standPanel('Σ','Сумма за окно',window,rows)}</div>`;
 }
 
+
+function exportChart(){
+ const svg=$('#chartSvg');if(!svg){toast('Нет графика для экспорта');return}
+ const clone=svg.cloneNode(true);
+ clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+ // white/dark bg
+ const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
+ bg.setAttribute('width','100%');bg.setAttribute('height','100%');bg.setAttribute('fill','#0b0f14');
+ clone.insertBefore(bg,clone.firstChild);
+ const xml=new XMLSerializer().serializeToString(clone);
+ const blob=new Blob([xml],{type:'image/svg+xml'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='f1-chart-'+S.year+'.svg';a.click();URL.revokeObjectURL(a.href);
+ toast('SVG сохранён');
+}
+function exportChartPng(){
+ const svg=$('#chartSvg');if(!svg){toast('Нет графика');return}
+ const clone=svg.cloneNode(true);
+ clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+ const vb=svg.viewBox.baseVal;const W=vb.width||800,H=vb.height||420;
+ const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
+ bg.setAttribute('width',W);bg.setAttribute('height',H);bg.setAttribute('fill','#0b0f14');
+ clone.insertBefore(bg,clone.firstChild);
+ const xml=new XMLSerializer().serializeToString(clone);
+ const img=new Image();
+ img.onload=()=>{const c=document.createElement('canvas');c.width=W*2;c.height=H*2;const ctx=c.getContext('2d');ctx.scale(2,2);ctx.drawImage(img,0,0);c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='f1-chart-'+S.year+'.png';a.click();URL.revokeObjectURL(a.href);toast('PNG сохранён')},'image/png')};
+ img.onerror=()=>toast('Не удалось сделать PNG — скачайте SVG');
+ img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
+}
+
+function h2hView(){
+ const Y=yearGps().filter(fl);
+ const active=S.drv.filter(d=>Y.some(g=>part(g,d.id))).sort((a,b)=>dT(b.id)-dT(a.id)||a.n.localeCompare(b.n));
+ if(active.length<2)return`<div class="em"><h2>Нужно минимум 2 пилота</h2><p>Загрузите результаты сезона.</p></div>`;
+ if(!V.h2hA||!active.find(d=>d.id===V.h2hA))V.h2hA=active[0].id;
+ if(!V.h2hB||!active.find(d=>d.id===V.h2hB)||V.h2hB===V.h2hA)V.h2hB=active.find(d=>d.id!==V.h2hA).id;
+ const A=active.find(d=>d.id===V.h2hA),B=active.find(d=>d.id===V.h2hB);
+ const opts=active.map(d=>`<option value="${d.id}">${esc(d.n)}</option>`).join('');
+ let qA=0,qB=0,rA=0,rB=0,ptsA=0,ptsB=0,both=0;
+ const rows=[];
+ Y.forEach(g=>{
+  const qiA=g.q.indexOf(A.id),qiB=g.q.indexOf(B.id);
+  const riA=g.race.indexOf(A.id),riB=g.race.indexOf(B.id);
+  const pA=tot(g,A.id),pB=tot(g,B.id);
+  if(qiA>=0&&qiB>=0){both++;if(qiA<qiB)qA++;else if(qiB<qiA)qB++}
+  if(riA>=0&&riB>=0){if(riA<riB)rA++;else if(riB<riA)rB++}
+  ptsA+=pA;ptsB+=pB;
+  if(qiA>=0||qiB>=0||riA>=0||riB>=0||pA||pB){
+   rows.push({n:gpShort(g),qA:qiA>=0?qiA+1:'—',qB:qiB>=0?qiB+1:'—',rA:riA>=0?riA+1:'—',rB:riB>=0?riB+1:'—',pA,pB});
+  }
+ });
+ const cA=dc(A,Y[Y.length-1]||{at:{}}),cB=dc(B,Y[Y.length-1]||{at:{}});
+ return`<div class="card">
+  <div class="mu" style="margin-bottom:8px">Сравнение двух пилотов · ${S.year}</div>
+  <div class="h2h-grid">
+   <div class="who"><select data-act="h2ha">${active.map(d=>`<option value="${d.id}" ${d.id===V.h2hA?'selected':''}>${esc(d.n)}</option>`).join('')}</select></div>
+   <b>VS</b>
+   <div class="who"><select data-act="h2hb">${active.map(d=>`<option value="${d.id}" ${d.id===V.h2hB?'selected':''}>${esc(d.n)}</option>`).join('')}</select></div>
+  </div>
+  <div class="h2h-stat"><span style="color:${cA}">${esc(surname(A.n))}</span><span class="mid">Квал.</span><span style="color:${cB}">${esc(surname(B.n))}</span></div>
+  <div class="h2h-stat"><b>${qA}</b><span class="mid">${qA+qB?Math.round(qA/(qA+qB)*100)+'% : '+Math.round(qB/(qA+qB)*100)+'%':'—'}</span><b>${qB}</b></div>
+  <div class="h2h-stat"><span style="color:${cA}">Победы в квал.</span><span class="mid"></span><span style="color:${cB}">Победы в квал.</span></div>
+  <div class="h2h-stat"><b>${rA}</b><span class="mid">Гонка</span><b>${rB}</b></div>
+  <div class="h2h-stat"><b>${ptsA}</b><span class="mid">Очки</span><b>${ptsB}</b></div>
+ </div>
+ <div class="card"><div class="mu" style="margin-bottom:8px">По этапам</div>
+  <div class="tw"><table><thead><tr><th class="s1">Этап</th><th>Квал A</th><th>Квал B</th><th>Гонка A</th><th>Гонка B</th><th>Очки A</th><th>Очки B</th></tr></thead>
+  <tbody>${rows.map(r=>`<tr><th class="s1">${esc(r.n)}</th><td>${r.qA}</td><td>${r.qB}</td><td>${r.rA}</td><td>${r.rB}</td><td>${r.pA||''}</td><td>${r.pB||''}</td></tr>`).join('')}</tbody></table></div>
+ </div>`;
+}
+
+function predChart(done){
+ const withPred=done.filter(g=>hasPred(g)&&g.race.length);
+ if(!withPred.length)return`<div class="em"><h2>Нет прогнозов</h2><p>Откройте этап → вкладка «Прогноз», укажите порядок до гонки. После ввода результата появится оценка.</p></div>`;
+ const scores=withPred.map(g=>({g,sc:predScore(g)}));
+ const n=scores.length;
+ const vals=scores.map(s=>s.sc?s.sc.score:0);
+ const maxY=Math.max(...vals,10);
+ const stepY=maxY<=30?5:maxY<=80?10:20;
+ const yMax=Math.ceil(maxY/stepY)*stepY||stepY;
+ const W=Math.max(640,n*48+80),H=340,padL=44,padR=20,padT=16,padB=40;
+ const x=i=>padL+(n===1?0:(W-padL-padR)*i/(n-1));
+ const y=v=>padT+(H-padT-padB)*(1-v/yMax);
+ let grid='';
+ for(let v=0;v<=yMax;v+=stepY)grid+=`<line x1="${padL}" y1="${y(v)}" x2="${W-padR}" y2="${y(v)}" stroke="#1c2430"/><text x="${padL-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="#8b95a5">${v}</text>`;
+ let d='',dots='',labels='';
+ scores.forEach((s,i)=>{
+  const px=x(i),py=y(vals[i]);
+  d+=(i?' L':'M')+px+','+py;
+  dots+=`<circle cx="${px}" cy="${py}" r="4" fill="#e10600"/>`;
+  labels+=`<text x="${px}" y="${H-12}" text-anchor="middle" font-size="11" fill="#c8d0dc">${gpMark(s.g)}</text>`;
+ });
+ const avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+ const sum=vals.reduce((a,b)=>a+b,0);
+ const exact=scores.reduce((a,s)=>a+(s.sc?s.sc.exact:0),0);
+ const winners=scores.filter(s=>s.sc&&s.sc.winner).length;
+ const rows=scores.map((s,i)=>`<div class="row"><b>${i+1}</b><span class="nm">${esc(gpShort(s.g))}</span><span class="pt">${vals[i]}</span></div>`).join('');
+ return`<div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" id="chartSvg">${grid}<path d="${d}" fill="none" stroke="#e10600" stroke-width="2"/>${dots}${labels}</svg></div>
+ <div class="score-box" style="justify-content:center"><div><b>${Math.round(avg)}</b><br><span>средний score</span></div><div><b>${sum}</b><br><span>всего</span></div><div><b>${exact}</b><br><span>точных мест</span></div><div><b>${winners}/${n}</b><br><span>победителей</span></div></div>
+ </div>${standPanel('Σ','По этапам',n,rows)}</div>`;
+}
+
+function compareChart(){
+ const years=yearsList().filter(y=>{
+  const gs=S.gps.filter(g=>gy(g)===y&&fl(g));
+  return gs.length>=3;
+ }).slice(-5);
+ if(years.length<2)return`<div class="em"><h2>Нужно минимум 2 сезона</h2><p>Загрузите историю (⚙ → «Загрузить историю с 2020») или результаты других лет.</p></div>`;
+ if(!V.cmpYears||!V.cmpYears.length)V.cmpYears=years.slice(-3);
+ const sel=years.map(y=>`<label style="margin-right:10px"><input type="checkbox" data-act="cmpy" data-y="${y}" ${V.cmpYears.includes(y)?'checked':''}> ${y}</label>`).join('');
+ const use=V.cmpYears.filter(y=>years.includes(y));
+ if(use.length<1)return`<div class="card"><div class="mu">Выберите сезоны</div>${sel}</div>`;
+ // leader cumulative points after each round
+ const series=use.map((y,yi)=>{
+  const gs=sortGps(S.gps.filter(g=>gy(g)===y&&fl(g)));
+  const pts=[];
+  gs.forEach((g,i)=>{
+   // max driver points after this round
+   const totals={};
+   gs.slice(0,i+1).forEach(gg=>{
+    S.drv.forEach(d=>{totals[d.id]=(totals[d.id]||0)+tot(gg,d.id)});
+   });
+   const mx=Math.max(0,...Object.values(totals));
+   pts.push(mx);
+  });
+  const colors=['#e10600','#3671c6','#27c7a8','#ff8000','#e0b100','#ff87bc'];
+  return{y,pts,c:colors[yi%colors.length],n:gs.length};
+ });
+ const maxN=Math.max(...series.map(s=>s.pts.length));
+ const maxY=Math.max(...series.flatMap(s=>s.pts),50);
+ const stepY=maxY<=100?20:maxY<=300?50:100;
+ const yMax=Math.ceil(maxY/stepY)*stepY;
+ const W=Math.max(700,maxN*36+80),H=380,padL=48,padR=60,padT=16,padB=36;
+ const x=i=>padL+(maxN<=1?0:(W-padL-padR)*i/(maxN-1));
+ const y=v=>padT+(H-padT-padB)*(1-v/yMax);
+ let grid='';
+ for(let v=0;v<=yMax;v+=stepY)grid+=`<line x1="${padL}" y1="${y(v)}" x2="${W-padR}" y2="${y(v)}" stroke="#1c2430"/><text x="${padL-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="#8b95a5">${v}</text>`;
+ let paths='',labs='';
+ series.forEach(s=>{
+  let d='';s.pts.forEach((p,i)=>{d+=(i?' L':'M')+x(i)+','+y(p)});
+  paths+=`<path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.2" stroke-linejoin="round"/>`;
+  const last=s.pts[s.pts.length-1];
+  labs+=`<text x="${W-padR+6}" y="${y(last)+4}" font-size="12" font-weight="700" fill="${s.c}">${s.y}</text>`;
+ });
+ const rows=series.map(s=>`<div class="row"><b style="color:${s.c}">●</b><span class="nm">${s.y}</span><span class="pt">${s.pts[s.pts.length-1]||0}</span></div>`).join('');
+ return`<div class="card" style="margin-bottom:10px"><div class="mu" style="margin-bottom:6px">Сезоны для сравнения (очки лидера после каждого этапа)</div>${sel}</div>
+ <div class="dash-layout"><div class="dash-main"><div class="chart-box" id="chartBox"><svg viewBox="0 0 ${W} ${H}" id="chartSvg">${grid}${paths}${labs}</svg></div>
+ <div class="mu" style="text-align:center;margin-top:4px">По горизонтали — номер этапа</div></div>${standPanel('Σ','Финиш сезона',use.length,rows)}</div>`;
+}
+
 function dashView(){
  const done=yearGps().filter(fl);
- if(done.length<1)return`<div class="em"><h2>Нет результатов за ${S.year}</h2><p>Загрузите или введите результаты этапов сезона.</p></div>`;
- if(V.dashIdx==null||V.dashIdx>=done.length)V.dashIdx=done.length-1;
- const mode=V.dashMode||'d',kind=V.dashKind||'pts';
- const title=kind==='rank'
-  ?(mode==='d'?'Эволюция мест пилотов':'Эволюция мест команд')
-  :kind==='form'
-  ?(mode==='d'?'Форма пилотов (последние этапы)':'Форма команд (последние этапы)')
-  :(mode==='d'?'Эволюция очков пилотов':'Эволюция очков команд');
+ const kind=V.dashKind||'pts',mode=V.dashMode||'d';
+ // pred & compare & h2h don't need same empty check
+ if(kind!=='compare'&&kind!=='h2h'&&kind!=='pred'&&done.length<1)
+  return`<div class="em"><h2>Нет результатов за ${S.year}</h2><p>Загрузите или введите результаты этапов сезона.</p></div>`;
+ if(done.length&& (V.dashIdx==null||V.dashIdx>=done.length))V.dashIdx=done.length-1;
+ const titles={
+  pts: mode==='d'?'Эволюция очков пилотов':'Эволюция очков команд',
+  rank: mode==='d'?'Эволюция мест пилотов':'Эволюция мест команд',
+  form: mode==='d'?'Форма пилотов':'Форма команд',
+  pred: 'Точность прогнозов',
+  h2h: 'Head-to-head пилотов',
+  compare: 'Сравнение сезонов (лидер)'
+ };
+ const title=titles[kind]||titles.pts;
+ const showMode=kind==='pts'||kind==='rank'||kind==='form';
+ const showFormWin=kind==='form';
+ const body=kind==='rank'?rankingChart(done,mode)
+  :kind==='form'?formChart(done,mode)
+  :kind==='pred'?predChart(done)
+  :kind==='h2h'?h2hView()
+  :kind==='compare'?compareChart()
+  :pointsChart(done,mode);
+ const canExport=kind!=='h2h';
  return`<div class="dash-card">
- <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-  <div class="seg" style="margin:0;flex:1;min-width:200px"><button class="${kind==='pts'?'on':''}" data-act="dashk" data-v="pts">Очки</button><button class="${kind==='rank'?'on':''}" data-act="dashk" data-v="rank">Места</button><button class="${kind==='form'?'on':''}" data-act="dashk" data-v="form">Форма</button></div>
-  <div class="seg" style="margin:0;flex:1;min-width:160px"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>
+ <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+  <div class="seg" style="margin:0;flex:1;min-width:260px">
+   <button class="${kind==='pts'?'on':''}" data-act="dashk" data-v="pts">Очки</button>
+   <button class="${kind==='rank'?'on':''}" data-act="dashk" data-v="rank">Места</button>
+   <button class="${kind==='form'?'on':''}" data-act="dashk" data-v="form">Форма</button>
+   <button class="${kind==='pred'?'on':''}" data-act="dashk" data-v="pred">Прогноз</button>
+   <button class="${kind==='h2h'?'on':''}" data-act="dashk" data-v="h2h">VS</button>
+   <button class="${kind==='compare'?'on':''}" data-act="dashk" data-v="compare">Годы</button>
+  </div>
+  ${showMode?`<div class="seg" style="margin:0;min-width:140px"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>`:''}
+  ${showFormWin?`<div class="seg" style="margin:0;min-width:160px"><button class="${(V.formWin||5)===3?'on':''}" data-act="formw" data-v="3">3 этапа</button><button class="${(V.formWin||5)===5?'on':''}" data-act="formw" data-v="5">5</button><button class="${(V.formWin||5)===10?'on':''}" data-act="formw" data-v="10">10</button></div>`:''}
  </div>
- <div class="dash-title">${title}</div>
- ${kind==='rank'?rankingChart(done,mode):kind==='form'?formChart(done,mode):pointsChart(done,mode)}</div>`}
+ <div class="dash-title">${title}${kind==='form'?' · последние '+(V.formWin||5):''}</div>
+ ${body}
+ ${canExport?`<div class="export-row"><button data-act="expsvg">Скачать SVG</button><button data-act="exppng">Скачать PNG</button></div>`:''}
+</div>`}
 
 function gpView(){
  const g=gp(),k=V.mode;
@@ -537,7 +731,7 @@ function setView(){
  <div class="mu" style="margin-bottom:8px">Локально: <b id="metaLocal">—</b><br>На сайте: <b id="metaShared">—</b></div>
  <button class="pr" data-act="publish" style="width:100%">Скачать data.json для публикации</button>
  <button data-act="loadshared" style="width:100%;margin-top:6px">Подтянуть общие данные с сайта</button>
- <div class="mu" style="margin-top:6px">1) На любом устройстве загрузите/введите результаты.<br>2) «Скачать data.json» → положите файл в корень репозитория (рядом с index.html) → commit &amp; push.<br>3) У всех остальных при открытии сайта подтянутся более новые данные автоматически (или кнопкой выше).<br>Для полного автообновления без ручного commit добавьте GitHub Action (см. README).</div></div>
+ <div class="mu" style="margin-top:6px">1) На любом устройстве загрузите/введите результаты.<br>2) «Скачать data.json» → положите файл в корень репозитория (рядом с index.html) → commit &amp; push.<br>3) У всех остальных при открытии сайта подтянутся более новые данные автоматически (или кнопкой выше).</div></div>
  <div class="card gap"><div class="mu" style="margin-bottom:8px">Резервная копия</div><div class="row"><button data-act="show">Показать копию</button><button data-act="restore">Восстановить из текста</button></div><textarea id="bk" placeholder="Скопируйте сюда текст копии, чтобы восстановить"></textarea></div></div>`}
 
 function bindChartZoom(){
@@ -554,6 +748,7 @@ function bindChartZoom(){
  box.addEventListener('pointermove',e=>{if(!drag)return;const r=svg.getBoundingClientRect(),vb=svg.viewBox.baseVal;tx=drag.ox+(e.clientX-drag.x)/r.width*vb.width;ty=drag.oy+(e.clientY-drag.y)/r.height*vb.height;apply()});
  box.addEventListener('pointerup',()=>{drag=null});
  box.addEventListener('dblclick',()=>{scale=1;tx=0;ty=0;apply()})}
+
 function render(){const o=$('.sheet'),st=o?o.scrollTop:0;$('#app').innerHTML=(V.gp?gpView():mainView())+(V.set?setView():'');const n=$('.sheet');if(n)n.scrollTop=st;if(V.tab==='dash'&&!V.gp)bindChartZoom();
  if(V.set){const el=$('#metaLocal');if(el)el.textContent=(S.meta&&S.meta.updated)?S.meta.updated.replace('T',' ').slice(0,19):'нет';
   fetch(SHARED,{cache:'no-store'}).then(r=>r.ok?r.json():null).then(o=>{const e=$('#metaShared');if(e)e.textContent=(o&&o.meta&&o.meta.updated)?o.meta.updated.replace('T',' ').slice(0,19):'нет / старый формат'}).catch(()=>{const e=$('#metaShared');if(e)e.textContent='не удалось'})}
@@ -761,6 +956,10 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
  else if(a=='dashk'){V.dashKind=d.v;V.dashFocus=null;render();return}
  else if(a=='dashi'){V.dashIdx=+d.i;render();return}
  else if(a=='dashf'){V.dashFocus=V.dashFocus===d.id?null:d.id;render();return}
+ else if(a=='formw'){V.formWin=+d.v;render();return}
+ else if(a=='expsvg'){exportChart();return}
+ else if(a=='exppng'){exportChartPng();return}
+ else if(a=='cmpy'){const y=+d.y;if(!V.cmpYears)V.cmpYears=[];if(V.cmpYears.includes(y))V.cmpYears=V.cmpYears.filter(x=>x!==y);else V.cmpYears.push(y);render();return}
  else if(a=='add')L.push(d.id);
  else if(a=='rm'){delete g.ov[V.mode+L[i]];L.splice(i,1)}
  else if(a=='up'){if(i>0)[L[i-1],L[i]]=[L[i],L[i-1]]}
@@ -785,6 +984,9 @@ document.addEventListener('change',e=>{const x=e.target,d=x.dataset,g=V.gp&&gp()
  else if(d.dn)S.drv.find(z=>z.id==d.dn).n=x.value;
  else if(d.sg){const[id,j,f]=d.sg.split(':'),z=S.drv.find(q=>q.id==id).s[j];z[f]=f=='t'?+x.value:x.value===''?null:+x.value}
  else if(d.year){S.year=+x.value;V.dashIdx=null}
+ else if(x.getAttribute('data-act')==='h2ha'){V.h2hA=x.value;render();return}
+ else if(x.getAttribute('data-act')==='h2hb'){V.h2hB=x.value;render();return}
+ else if(x.getAttribute('data-act')==='cmpy'){const y=+x.getAttribute('data-y');if(!V.cmpYears)V.cmpYears=[];if(x.checked){if(!V.cmpYears.includes(y))V.cmpYears.push(y)}else V.cmpYears=V.cmpYears.filter(z=>z!==y);render();return}
  save()});
 boot();
 </script></body></html>
