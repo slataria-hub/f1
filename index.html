@@ -685,7 +685,7 @@ function matesView(){
    });
    if(qA+qB+rA+rB+sA+sB===0&&ptsA+ptsB===0)return;
    const ref=done[done.length-1]||Y[Y.length-1]||{};
-   const {a:cA,b:cB}=h2hColors(dc(A,ref),dc(B,ref));
+   const cA='#e57373',cB='#81c784'; // пастельные красный / зелёный для всех пар
    const bar=(left,right,label)=>{
     const sum=left+right;
     if(!sum)return`<div style="margin-top:12px"><div class="mu" style="text-align:center;margin-bottom:4px">${label}</div><div class="mu" style="text-align:center;font-size:12px">нет общих сессий</div></div>`;
