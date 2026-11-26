@@ -192,14 +192,14 @@ async function loadShared(){
 const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const drs=()=>S.drv,gp=()=>S.gps.find(g=>g.id==V.gp);
 const sn=n=>n.trim().split(' ').pop().slice(0,3).toUpperCase();
-const fl=g=>g.race.length||g.spr.length;
+const fl=g=>!!(g&&((g.race&&g.race.length)||(g.spr&&g.spr.length)));
 const gy=g=>g.y!=null?g.y:S.year;
 const gkey=g=>gy(g)*100+g.r;
 const sortGps=a=>[...a].sort((x,y)=>gkey(x)-gkey(y));
-const tm=(d,g)=>{if(g.at&&g.at[d.id]!=null)return g.at[d.id];const r=g.r;const z=d.s.find(x=>r>=x.f&&(x.u==null||r<=x.u));return z?z.t:-1};
-const part=(g,id)=>g.race.includes(id)||g.spr.includes(id)||g.q.includes(id);
-const dc=(d,g)=>{const t=tm(d,g);return t<0?'#888':S.teams[t].c};
-const last=d=>d.s[d.s.length-1].t;
+const tm=(d,g)=>{if(!d||!g)return -1;if(g.at&&g.at[d.id]!=null)return g.at[d.id];const r=g.r;const segs=d.s||[];const z=segs.find(x=>r>=x.f&&(x.u==null||r<=x.u));return z?z.t:-1};
+const part=(g,id)=>!g?false:((g.race||[]).includes(id)||(g.spr||[]).includes(id)||(g.q||[]).includes(id));
+const dc=(d,g)=>{const t=tm(d,g);return (t<0||!S.teams[t])?'#888':S.teams[t].c};
+const last=d=>(d&&d.s&&d.s.length)?d.s[d.s.length-1].t:-1;
 // название команды в контексте сезона (преемственность индексов 0–10)
 function teamName(i,y){
  y=y!=null?y:S.year;
@@ -394,21 +394,21 @@ function titlePathTeams(){
 }
 function titlePathCard(){
  const dr=titlePathDrivers();
- const tm=titlePathTeams();
- if(!dr.rows.length&&!tm.rows.length)return'';
+ const tPath=titlePathTeams();
+ if(!dr.rows.length&&!tPath.rows.length)return'';
  const rem=dr.rem;
  let head='';
  if(rem.races===0){
   head=`<div class="card" style="border-color:var(--ac)"><div class="mu">Сезон завершён · ${S.year}</div>
    ${dr.leader?`<p style="margin:8px 0 0;font:700 18px var(--hd)">Чемпион: <span style="color:${dr.leader.c}">${esc(dr.leader.n)}</span> · ${dr.leader.p} очков</p>`:''}
-   ${tm.leader?`<p style="margin:6px 0 0;font:700 16px var(--hd)">Кубок конструкторов: <span style="color:${tm.leader.c}">${esc(tm.leader.n)}</span> · ${tm.leader.p}</p>`:''}
+   ${tPath.leader?`<p style="margin:6px 0 0;font:700 16px var(--hd)">Кубок конструкторов: <span style="color:${tPath.leader.c}">${esc(tPath.leader.n)}</span> · ${tPath.leader.p}</p>`:''}
   </div>`;
  }else{
   const L=dr.leader,need=dr.rows[0]&&dr.rows[0].needClinch;
-  const TL=tm.leader,tneed=tm.rows[0]&&tm.rows[0].needClinch;
+  const TL=tPath.leader,tneed=tPath.rows[0]&&tPath.rows[0].needClinch;
   head=`<div class="card" style="border-left:4px solid var(--ac)">
    <div style="font:700 17px var(--hd);margin-bottom:8px">Путь к титулу · ${S.year}</div>
-   <div class="mu" style="margin-bottom:10px">Осталось этапов: <b>${rem.races}</b> · макс. очков пилоту: <b>${rem.pts}</b> · команде: <b>${tm.rem.pts}</b></div>
+   <div class="mu" style="margin-bottom:10px">Осталось этапов: <b>${rem.races}</b> · макс. очков пилоту: <b>${rem.pts}</b> · команде: <b>${tPath.rem.pts}</b></div>
    ${L?`<div style="margin-bottom:10px;padding:10px;background:rgba(127,127,127,.06);border-radius:10px">
     <div class="mu">Личный зачёт</div>
     <div style="font:700 16px var(--hd);color:${L.c}">${esc(L.n)} · ${L.p} очков</div>
@@ -428,7 +428,7 @@ function titlePathCard(){
  // tables who is still in fight
  const aliveD=dr.rows.filter(r=>r.alive);
  const outD=dr.rows.filter(r=>!r.alive);
- const aliveT=tm.rows.filter(r=>r.alive);
+ const aliveT=tPath.rows.filter(r=>r.alive);
  const rowD=r=>`<div class="li"><b>${r.i+1}</b><span class="dot" style="background:${r.c}"></span><span class="nm">${esc(r.n)}${r.i===0&&r.needClinch===0?' <span class="badge ok">чемпион</span>':(!r.alive?' <span class="badge">вне борьбы</span>':'')}</span><span class="mu">сейчас ${r.p}</span><b title="максимум к концу сезона">${r.maxFinal}</b></div>`;
  const rowT=r=>`<div class="li"><b>${r.i+1}</b><span class="dot" style="background:${r.c}"></span><span class="nm">${esc(r.n)}${r.i===0&&r.needClinch===0?' <span class="badge ok">кубок</span>':(!r.alive?' <span class="badge">вне борьбы</span>':'')}</span><span class="mu">сейчас ${r.p}</span><b title="максимум к концу">${r.maxFinal}</b></div>`;
  const body=rem.races>0?`<div class="card">
@@ -444,30 +444,41 @@ function titlePathCard(){
  return head+body;
 }
 
+
 function standView(){
- const Y=yearGps();
- const teamOf=d=>{for(let i=Y.length-1;i>=0;i--){const t=tm(d,Y[i]);if(t>=0&&part(Y[i],d.id))return t}return last(d)};
- const D=S.drv.filter(d=>Y.some(g=>part(g,d.id))).map(d=>{const ti=teamOf(d);return{id:d.id,n:d.n,c:ti>=0&&S.teams[ti]?S.teams[ti].c:'#888',sub:ti>=0?teamName(ti):'',p:dT(d.id)}}).sort((a,b)=>b.p-a.p);
- const T=activeTeams().map(({i,n,c})=>({n,c,p:tT(i),i})).filter(t=>Y.some(g=>S.drv.some(d=>tm(d,g)===t.i&&part(g,d.id)))).sort((a,b)=>b.p-a.p);
- if(!D.length&&!T.length)return`<div class="em"><h2>Нет зачёта за ${S.year}</h2><p>Нужны результаты этапов выбранного сезона.</p></div>`;
- const done=Y.filter(fl).length,total=Y.length,left=Math.max(0,total-done);
- const maxPer=Y.slice(done).reduce((a,g)=>a+(g.sp?33:25),0)||left*25;
- const gap=D.length>1?(D[0].p-D[1].p):0;
- const remR=maxPtsRemaining().races;
- const tpD=typeof titlePathDrivers==='function'?titlePathDrivers():{rows:[]};
- const tpT=typeof titlePathTeams==='function'?titlePathTeams():{rows:[]};
- const clinchedD=remR===0||(tpD.rows[0]&&tpD.rows[0].needClinch===0);
- const clinchedT=remR===0||(tpT.rows[0]&&tpT.rows[0].needClinch===0);
- const leaderCard=D.length?`<div class="leader">
+ try{
+  const Y=yearGps();
+  const teamOf=d=>{for(let i=Y.length-1;i>=0;i--){const t=tm(d,Y[i]);if(t>=0&&part(Y[i],d.id))return t}return last(d)};
+  const D=S.drv.filter(d=>Y.some(g=>part(g,d.id))).map(d=>{const ti=teamOf(d);return{id:d.id,n:d.n,c:ti>=0&&S.teams[ti]?S.teams[ti].c:'#888',sub:ti>=0?teamName(ti):'',p:dT(d.id)}}).sort((a,b)=>b.p-a.p);
+  const T=activeTeams().map(({i,n,c})=>({n,c,p:tT(i),i})).filter(t=>Y.some(g=>S.drv.some(d=>tm(d,g)===t.i&&part(g,d.id)))).sort((a,b)=>b.p-a.p);
+  if(!D.length&&!T.length)return`<div class="em"><h2>Нет зачёта за ${S.year}</h2><p>Нужны результаты этапов выбранного сезона.</p><button class="pr" data-act="sched">Загрузить расписание ${S.year}</button></div>`;
+  const done=Y.filter(fl).length,total=Y.length,left=Math.max(0,total-done);
+  const maxPer=Y.slice(done).reduce((a,g)=>a+(g.sp?33:25),0)||left*25;
+  const gap=D.length>1?(D[0].p-D[1].p):0;
+  const remR=maxPtsRemaining().races;
+  let clinchedD=false,clinchedT=false;
+  try{
+   const tpD=titlePathDrivers(),tpT=titlePathTeams();
+   clinchedD=remR===0||(tpD.rows[0]&&tpD.rows[0].needClinch===0);
+   clinchedT=remR===0||(tpT.rows[0]&&tpT.rows[0].needClinch===0);
+  }catch(e){}
+  const leaderCard=D.length?`<div class="leader">
   <div class="box${clinchedD?' champ-box':''}"><div class="lbl">${clinchedD?'Чемпион 👑':'Лидер'}</div><div class="val" style="color:${D[0].c}">${esc(surname(D[0].n))}</div><div class="sub">${D[0].p} очков</div></div>
   <div class="box"><div class="lbl">Отрыв</div><div class="val">${gap===0?'—':'+'+gap}</div><div class="sub">${D.length>1?esc(surname(D[1].n)):''}</div></div>
   <div class="box"><div class="lbl">Осталось этапов</div><div class="val">${left}</div><div class="sub">до ~${maxPer} очков</div></div>
  </div>`:'';
- const lst=(A,isTeam)=>{const crown=isTeam?clinchedT:clinchedD;return A.map((x,i)=>{const df=i===0?'—':(x.p-A[i-1].p);const dfs=df===0?'0':(df>0?'+'+df:String(df));
+  const lst=(A,isTeam)=>{const crown=isTeam?clinchedT:clinchedD;return A.map((x,i)=>{const df=i===0?'—':(x.p-A[i-1].p);const dfs=df===0?'0':(df>0?'+'+df:String(df));
   const isChamp=i===0&&crown;
   return`<div class="li${isChamp?' champ':''}"><b>${i+1}</b><span class="dot" style="background:${x.c}"></span><span class="nm">${esc(x.n)}${isChamp?'<span class="champ-crown" title="Чемпион">👑</span>':''}${x.sub?`<div class="mu">${esc(x.sub)}</div>`:''}</span><b>${x.p}</b><span class="df">${dfs}</span></div>`}).join('')};
- const hd=t=>`<h3 style="margin:0 0 6px;font:700 18px var(--hd)">${t}</h3>`;
- return titlePathCard()+leaderCard+`<div class="card">${hd('Командный зачёт · '+S.year)}${lst(T,true)}</div><div class="card">${hd('Личный зачёт · '+S.year)}${lst(D,false)}</div>`}
+  const hd=t=>`<h3 style="margin:0 0 6px;font:700 18px var(--hd)">${t}</h3>`;
+  let path='';
+  try{path=titlePathCard()}catch(e){console.error('titlePathCard',e)}
+  return path+leaderCard+`<div class="card">${hd('Командный зачёт · '+S.year)}${lst(T,true)}</div><div class="card">${hd('Личный зачёт · '+S.year)}${lst(D,false)}</div>`;
+ }catch(e){
+  console.error('standView',e);
+  return`<div class="em"><h2>Не удалось открыть зачёт</h2><p>Для сезона ${S.year} не хватает данных или они повреждены. Загрузите результаты: ⚙ → «Расписание + результаты».</p></div>`;
+ }
+}
 
 function matesView(){const P={},K=(i,x,y)=>i+x.id+y.id;const Y=yearGps();
  S.teams.forEach((t,i)=>{const c=S.drv.filter(d=>Y.some(g=>tm(d,g)===i));if(c.length>1){const pairs=[];for(let a=0;a<c.length;a++)for(let b=a+1;b<c.length;b++)pairs.push([c[a],c[b]]);pairs.forEach(([x,y])=>{P[K(i,x,y)]={i,x,y,a:0,b:0}})}});
@@ -1079,7 +1090,7 @@ async function sched(){
     upd++;
     return;
    }
-   S.gps.push({id:'g'+S.year+'r'+r.round+Date.now(),n:r.raceName,r:+r.round,y:S.year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]},d:r.date||null});
+   S.gps.push({id:'g'+S.year+'r'+r.round+Date.now(),n:r.raceName,r:+r.round,y:S.year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]},st:{},d:r.date||null});
    n++;
   });
   S.gps=sortGps(S.gps);save();V.set=false;render();
