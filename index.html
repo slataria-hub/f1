@@ -57,9 +57,13 @@ textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px 
 .tb{border-left:4px solid var(--c);background:rgba(127,127,127,.06);border-radius:8px;padding:7px 10px;margin-top:8px}
 .tn{display:flex;gap:10px;align-items:baseline;font:700 15px var(--hd)}.tn b{font-size:18px}.tn span:first-child{flex:1}
 .dr{display:flex;align-items:baseline;gap:8px;padding:3px 0}.dr>span:first-child{flex:1}.dr b{min-width:26px;text-align:right}.dr .mu i{font-style:normal;margin-left:8px}
-.dash-card{background:#0b0f14;border:1px solid #1c2330;border-radius:16px;padding:18px 16px 14px;margin-bottom:12px;color:#e8edf5}
-.dash-card .seg{max-width:220px}.dash-card .seg button{background:#141a22;border-color:#2a3340;color:#8b95a5}.dash-card .seg .on{background:#e8edf5;color:#0b0f14;border-color:#e8edf5}
-.dash-title{font:700 20px var(--hd);margin:0 0 14px;color:#f0f4fa;letter-spacing:.2px}
+.dash-card{background:var(--sf);border:1px solid var(--ln);border-radius:16px;padding:18px 16px 14px;margin-bottom:12px;color:var(--tx)}
+.dash-card .seg{max-width:none}
+.dash-card .seg button{background:var(--sf);border:1px solid var(--ln);color:var(--tx)}
+.dash-card .seg .on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.dash-kinds button{background:var(--sf);border:1px solid var(--ln);color:var(--tx);font-weight:600}
+.dash-kinds button.on,.dash-kinds .on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.dash-title{font:700 20px var(--hd);margin:0 0 14px;color:var(--tx);letter-spacing:.2px}
 .dash-layout{display:flex;gap:12px;align-items:stretch;width:100%}
 .dash-main{flex:1;min-width:0;display:flex;flex-direction:column}
 .chart-box{position:relative;width:100%;height:min(62vh,560px);min-height:360px;user-select:none}
@@ -109,6 +113,23 @@ textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px 
 
 
 .dnf{color:#e10600;font-weight:700;font-size:12px;letter-spacing:.02em}
+
+.chips button{background:var(--sf);border:1px solid var(--ln);color:var(--tx);font-weight:600}
+.chips button.pr{background:var(--ac);border-color:var(--ac);color:#fff}
+.chips button .dot{flex-shrink:0}
+.h2h-stat{color:var(--tx);font-size:15px}
+.h2h-stat b{font:700 18px var(--hd);color:var(--tx)}
+.h2h-stat .mid{color:var(--tx);font-weight:700;opacity:.85}
+.h2h-stat span{color:var(--tx)}
+select#h2hSelectA,select#h2hSelectB{background:var(--sf)!important;color:var(--tx)!important;border-width:2px;font-weight:700}
+.card select{background:var(--sf);color:var(--tx)}
+
+
+.card .mu,.dash-card .mu{color:var(--mu);opacity:1}
+.h2h-stat .mid{color:var(--mu);font-weight:700}
+/* chips: always readable on light and dark */
+.chips button{background:var(--bg);border:1px solid var(--ln);color:var(--tx);font-weight:600}
+.chips button.pr{background:var(--ac)!important;border-color:var(--ac)!important;color:#fff!important}
 </style></head><body>
 <div id="app"></div><div id="toast"></div>
 <script>
@@ -770,12 +791,12 @@ function h2hView(){
   <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:end;margin-bottom:12px">
    <div>
     <div class="mu" style="margin-bottom:4px">Пилот 1</div>
-    <select id="h2hSelectA" style="width:100%;font-weight:600;border-color:${cA}">${optList(V.h2hA)}</select>
+    <select id="h2hSelectA" style="width:100%;font-weight:700;border:2px solid ${cA};color:var(--tx);background:var(--sf)">${optList(V.h2hA)}</select>
    </div>
    <button type="button" data-act="h2hswap" title="Поменять местами" style="min-width:48px;font-size:18px">⇄</button>
    <div>
     <div class="mu" style="margin-bottom:4px">Пилот 2</div>
-    <select id="h2hSelectB" style="width:100%;font-weight:600;border-color:${cB}">${optList(V.h2hB)}</select>
+    <select id="h2hSelectB" style="width:100%;font-weight:700;border:2px solid ${cB};color:var(--tx);background:var(--sf)">${optList(V.h2hB)}</select>
    </div>
   </div>
   <div class="mu" style="margin-bottom:6px">Быстрый выбор · пилот 1</div>
