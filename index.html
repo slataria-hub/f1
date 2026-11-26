@@ -133,6 +133,29 @@ select#h2hSelectA,select#h2hSelectB{background:var(--sf)!important;color:var(--t
 /* chips: always readable on light and dark */
 .chips button{background:var(--bg);border:1px solid var(--ln);color:var(--tx);font-weight:600}
 .chips button.pr{background:var(--ac)!important;border-color:var(--ac)!important;color:#fff!important}
+
+.cal-row{display:grid;grid-template-columns:36px 1fr auto auto;gap:8px 12px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--ln)}
+.cal-row:last-child{border:0}
+.cal-row.next{background:rgba(225,6,0,.08);border-radius:10px}
+.cal-row.done{opacity:.95}
+.cal-row .rnd{font:700 14px var(--hd);color:var(--mu)}
+.cal-row .nm{font-weight:600}
+.cal-row .when{font-size:12px;color:var(--mu)}
+.cal-row .win{font-size:13px;font-weight:600}
+.avg-table{width:100%;border-collapse:collapse}
+.avg-table th,.avg-table td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--ln)}
+.avg-table th:first-child,.avg-table td:first-child,.avg-table th:nth-child(2),.avg-table td:nth-child(2){text-align:left}
+.avg-table th{font-size:12px;color:var(--mu);font-weight:600}
+.dist-bars{display:flex;flex-direction:column;gap:8px}
+.dist-row{display:grid;grid-template-columns:100px 1fr 36px;gap:8px;align-items:center}
+.dist-row .bar{height:14px;background:var(--ln);border-radius:6px;overflow:hidden;display:flex}
+.dist-row .bar i{display:block;height:100%;min-width:0}
+.mate-card{margin-bottom:12px}
+.mate-card .pair{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+.fight-ok{color:#1a9a52;font-weight:700}
+.fight-out{color:var(--mu)}
+.dash-kinds{gap:6px}
+.dash-kinds button{font-size:13px;padding:8px 10px;min-width:auto}
 </style></head><body>
 <div id="app"></div><div id="toast"></div>
 <script>
@@ -910,11 +933,197 @@ function compareChart(){
  <div class="mu" style="text-align:center;margin-top:4px">По горизонтали — номер этапа</div></div>${standPanel('Σ','Финиш сезона',use.length,rows)}</div>`;
 }
 
+
+function calendarView(){
+ const Y=sortGps(yearGps());
+ if(!Y.length)return`<div class="em"><h2>Нет этапов за ${S.year}</h2><p>Загрузите расписание сезона.</p><button class="pr" data-act="sched">Загрузить расписание ${S.year}</button></div>`;
+ const td=new Date().toISOString().slice(0,10);
+ let nextId=null;
+ for(const g of Y){if(!fl(g)){nextId=g.id;break}}
+ return`<div class="card" style="padding:0;overflow:hidden">
+  ${Y.map(g=>{
+   const done=fl(g);
+   const isNext=g.id===nextId;
+   const winner=done&&g.race&&g.race[0]?S.drv.find(d=>d.id===g.race[0]):null;
+   const st=winner?raceSt(g,winner.id):null;
+   const winLabel=winner&&(!st||st==='OK')?esc(surname(winner.n)):(done?'—':'');
+   const when=g.d||'';
+   return`<div class="cal-row ${done?'done':''} ${isNext?'next':''}">
+    <span class="rnd">R${g.r}</span>
+    <div><div class="nm">${gpMark(g)} ${esc(gpShort(g))}${g.sp?' <span class="badge">спринт</span>':''}${isNext?' <span class="badge warn">следующий</span>':''}</div>
+    <div class="when">${when}${done?' · завершён':''}</div></div>
+    <div class="win" style="color:${winner?dc(winner,g):'var(--mu)'}">${winLabel||(isNext?'скоро':'')}</div>
+    <button data-act="open" data-id="${g.id}" style="min-height:34px;padding:6px 10px">Открыть</button>
+   </div>`;
+  }).join('')}
+ </div>
+ <p class="mu" style="margin:10px 4px 0">Всего этапов: ${Y.length} · завершено: ${Y.filter(fl).length}</p>`;
+}
+
+function averagesView(){
+ const Y=yearGps().filter(fl);
+ if(!Y.length)return`<div class="em"><h2>Нет результатов</h2><p>Загрузите результаты сезона ${S.year}.</p></div>`;
+ const rows=S.drv.filter(d=>Y.some(g=>part(g,d.id))).map(d=>{
+  let rq=0,nq=0,rr=0,nr=0,starts=0,pts=dT(d.id),dnf=0;
+  Y.forEach(g=>{
+   const qi=g.q.indexOf(d.id),ri=g.race.indexOf(d.id);
+   const st=raceSt(g,d.id);
+   if(qi>=0){rq+=qi+1;nq++}
+   if(ri>=0){
+    starts++;
+    if(st&&st!=='OK'){dnf++;}
+    else{rr+=ri+1;nr++}
+   }else if(qi>=0||(g.at&&g.at[d.id]!=null)){
+    starts++;dnf++;
+   }
+  });
+  return{id:d.id,n:d.n,c:dc(d,Y[Y.length-1]||{}),
+   avgQ:nq?rq/nq:null,avgR:nr?rr/nr:null,starts,dnf,pts,nq,nr};
+ }).sort((a,b)=>(a.avgR==null)-(b.avgR==null)||(a.avgR||99)-(b.avgR||99)||b.pts-a.pts);
+ const fmt=v=>v==null?'—':v.toFixed(1);
+ return`<div class="card" style="overflow:auto">
+ <table class="avg-table"><thead><tr>
+  <th>#</th><th>Пилот</th><th>Ср. квал.</th><th>Ср. гонка</th><th>Стартов</th><th>DNF</th><th>Очки</th>
+ </tr></thead><tbody>
+ ${rows.map((r,i)=>`<tr>
+  <td>${i+1}</td>
+  <td><span class="dot" style="background:${r.c}"></span> ${esc(r.n)}</td>
+  <td>${fmt(r.avgQ)}</td><td><b>${fmt(r.avgR)}</b></td>
+  <td>${r.starts}</td><td>${r.dnf||'—'}</td><td>${r.pts}</td>
+ </tr>`).join('')}
+ </tbody></table></div>
+ <p class="mu" style="margin:8px 4px 0">Средняя гонка — только классифицированные финиши; DNF в среднее не входят.</p>`;
+}
+
+function teammateProgressView(){
+ const Y=yearGps().filter(fl);
+ if(!Y.length)return`<div class="em"><h2>Нет результатов</h2></div>`;
+ const cards=[];
+ activeTeams().forEach(({i,n,c})=>{
+  const members=S.drv.filter(d=>Y.some(g=>tm(d,g)===i&&part(g,d.id)));
+  if(members.length<2)return;
+  // pick top 2 by points in team this year
+  const ranked=members.map(d=>({d,p:dTi(d,i)})).sort((a,b)=>b.p-a.p);
+  const pairs=[];
+  for(let a=0;a<Math.min(ranked.length,3);a++)
+   for(let b=a+1;b<Math.min(ranked.length,3);b++)
+    pairs.push([ranked[a].d,ranked[b].d]);
+  pairs.forEach(([A,B])=>{
+   let qA=0,qB=0,rA=0,rB=0,ptsA=0,ptsB=0;
+   const series=[];
+   Y.forEach(g=>{
+    if(tm(A,g)!==i&&tm(B,g)!==i)return;
+    const qiA=g.q.indexOf(A.id),qiB=g.q.indexOf(B.id);
+    const riA=g.race.indexOf(A.id),riB=g.race.indexOf(B.id);
+    if(qiA>=0&&qiB>=0){if(qiA<qiB)qA++;else if(qiB<qiA)qB++}
+    if(riA>=0&&riB>=0){
+     const stA=raceSt(g,A.id),stB=raceSt(g,B.id);
+     if((!stA||stA==='OK')&&(!stB||stB==='OK')){if(riA<riB)rA++;else if(riB<riA)rB++}
+    }
+    ptsA+=tm(A,g)===i?tot(g,A.id):0;
+    ptsB+=tm(B,g)===i?tot(g,B.id):0;
+    series.push({g,ptsA,ptsB});
+   });
+   const maxP=Math.max(ptsA,ptsB,1);
+   cards.push(`<div class="card mate-card">
+    <div class="mu" style="margin-bottom:4px">${esc(n)}</div>
+    <div class="pair">
+     <span style="color:${dc(A,Y[Y.length-1])}"><b>${esc(surname(A.n))}</b> · ${ptsA} очк.</span>
+     <span class="mu">vs</span>
+     <span style="color:${dc(B,Y[Y.length-1])}"><b>${esc(surname(B.n))}</b> · ${ptsB} очк.</span>
+    </div>
+    <div class="h2h-stat"><b>${qA}</b><span class="mid">Квалификация</span><b>${qB}</b></div>
+    <div class="h2h-stat"><b>${rA}</b><span class="mid">Гонка</span><b>${rB}</b></div>
+    <div class="bar" style="height:12px;margin-top:8px"><i style="width:${ptsA/maxP*100}%;background:${dc(A,Y[Y.length-1])}"></i><i style="width:${ptsB/maxP*100}%;background:${dc(B,Y[Y.length-1])}"></i></div>
+    <div class="mu" style="margin-top:6px">Накопленные очки в составе команды по этапам: ${esc(surname(A.n))} ${ptsA>=ptsB?'впереди':'позади'} на ${Math.abs(ptsA-ptsB)}</div>
+   </div>`);
+  });
+ });
+ if(!cards.length)return`<div class="em"><h2>Нет пар напарников</h2><p>Нужны результаты, где в команде есть хотя бы два пилота.</p></div>`;
+ return cards.join('');
+}
+
+function finishDistView(){
+ const Y=yearGps().filter(fl);
+ if(!Y.length)return`<div class="em"><h2>Нет результатов</h2></div>`;
+ const buckets=['P1','P2–3','P4–5','P6–10','P11+','DNF'];
+ const colors=['#d4a017','#c0c0c0','#cd7f32','#3b82f6','#64748b','#e10600'];
+ const rows=S.drv.filter(d=>Y.some(g=>part(g,d.id))).map(d=>{
+  const cnt={};
+  buckets.forEach(b=>cnt[b]=0);
+  Y.forEach(g=>{
+   const ri=g.race.indexOf(d.id);
+   const st=raceSt(g,d.id);
+   if(st&&st!=='OK'){cnt['DNF']++;return}
+   if(ri<0){
+    if(g.q.includes(d.id)||(g.at&&g.at[d.id]!=null))cnt['DNF']++;
+    return;
+   }
+   const p=ri+1;
+   if(p===1)cnt['P1']++;
+   else if(p<=3)cnt['P2–3']++;
+   else if(p<=5)cnt['P4–5']++;
+   else if(p<=10)cnt['P6–10']++;
+   else cnt['P11+']++;
+  });
+  const total=buckets.reduce((a,b)=>a+cnt[b],0)||1;
+  return{id:d.id,n:d.n,c:dc(d,Y[Y.length-1]||{}),cnt,total,pts:dT(d.id)};
+ }).sort((a,b)=>b.pts-a.pts);
+ return`<div class="card"><div class="mu" style="margin-bottom:10px">Распределение финишей · ${S.year}</div>
+  ${rows.map(r=>`<div style="margin-bottom:14px">
+   <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span><span class="dot" style="background:${r.c}"></span><b>${esc(r.n)}</b></span><span class="mu">${r.pts} очк.</span></div>
+   <div class="dist-row" style="grid-template-columns:64px 1fr">
+    <div></div>
+    <div class="bar" style="height:16px">${buckets.map((b,i)=>r.cnt[b]?`<i style="width:${r.cnt[b]/r.total*100}%;background:${colors[i]}" title="${b}: ${r.cnt[b]}"></i>`:'').join('')}</div>
+   </div>
+   <div style="display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:4px;font-size:12px">${buckets.map((b,i)=>`<span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${colors[i]};margin-right:4px"></i>${b}: <b>${r.cnt[b]}</b></span>`).join('')}</div>
+  </div>`).join('')}
+ </div>`;
+}
+
+function titleFightView(){
+ const Y=yearGps();
+ const done=Y.filter(fl);
+ if(!done.length)return`<div class="em"><h2>Нет результатов за ${S.year}</h2></div>`;
+ const dr=titlePathDrivers();
+ const tm=titlePathTeams();
+ const rem=dr.rem||maxPtsRemaining();
+ const dRows=(dr.rows||[]).map(r=>({
+  ...r,
+  status:r.alive?(r.i===0&&r.needClinch===0?'Чемпион':(r.i===0?'Лидер':'В борьбе')):'Вне борьбы'
+ }));
+ const tRows=(tm.rows||[]).map(r=>({
+  ...r,
+  status:r.alive?(r.i===0&&r.needClinch===0?'Кубок':(r.i===0?'Лидер':'В борьбе')):'Вне борьбы'
+ }));
+ const rowHtml=(r,isTeam)=>`<div class="li">
+  <b>${r.i+1}</b>
+  <span class="dot" style="background:${r.c}"></span>
+  <span class="nm">${esc(r.n)}
+   <div class="mu">${r.status}${r.i===0&&r.needClinch!=null&&r.needClinch>0?' · до титула ещё '+r.needClinch+' очк.':''}</div>
+  </span>
+  <span class="mu">макс ${r.maxFinal}</span>
+  <b>${r.p}</b>
+  <span class="${r.alive?'fight-ok':'fight-out'}">${r.alive?'●':'○'}</span>
+ </div>`;
+ return`<div class="card">
+  <div style="font:700 17px var(--hd);margin-bottom:6px">Борьба за титул · ${S.year}</div>
+  <div class="mu" style="margin-bottom:12px">Осталось этапов: <b>${rem.races}</b> · макс. очков пилоту: <b>${rem.pts}</b>${tm.rem?` · команде: <b>${tm.rem.pts}</b>`:''}</div>
+  <h3 style="margin:0 0 8px;font:700 16px var(--hd)">Личный зачёт</h3>
+  ${dRows.map(r=>rowHtml(r,false)).join('')||'<p class="mu">—</p>'}
+ </div>
+ <div class="card">
+  <h3 style="margin:0 0 8px;font:700 16px var(--hd)">Кубок конструкторов</h3>
+  ${tRows.map(r=>rowHtml(r,true)).join('')||'<p class="mu">—</p>'}
+  <p class="mu" style="margin-top:10px">«В борьбе» — пилот/команда ещё может догнать лидера, если лидер больше не наберёт очков, а преследователь возьмёт максимум. Зелёная точка — ещё в борьбе.</p>
+ </div>`;
+}
+
 function dashView(){
  const done=yearGps().filter(fl);
  const kind=V.dashKind||'pts',mode=V.dashMode||'d';
- // pred & compare & h2h don't need same empty check
- if(kind!=='compare'&&kind!=='h2h'&&kind!=='pred'&&done.length<1)
+ const needsResults=!['calendar'].includes(kind);
+ if(needsResults&&kind!=='compare'&&kind!=='h2h'&&kind!=='pred'&&done.length<1)
   return`<div class="em"><h2>Нет результатов за ${S.year}</h2><p>Загрузите или введите результаты этапов сезона.</p></div>`;
  if(done.length&& (V.dashIdx==null||V.dashIdx>=done.length))V.dashIdx=done.length-1;
  const titles={
@@ -923,7 +1132,12 @@ function dashView(){
   form: mode==='d'?'Форма пилотов':'Форма команд',
   pred: 'Точность прогнозов',
   h2h: 'Head-to-head пилотов',
-  compare: 'Сравнение сезонов (лидер)'
+  compare: 'Сравнение сезонов (лидер)',
+  calendar: 'Календарь сезона',
+  averages: 'Средний старт и финиш',
+  matesprog: 'Прогресс относительно напарника',
+  finishdist: 'Распределение финишей',
+  titlefight: 'Кто ещё борется за титул'
  };
  const title=titles[kind]||titles.pts;
  const showMode=kind==='pts'||kind==='rank'||kind==='form';
@@ -933,17 +1147,21 @@ function dashView(){
   :kind==='pred'?predChart(done)
   :kind==='h2h'?h2hView()
   :kind==='compare'?compareChart()
+  :kind==='calendar'?calendarView()
+  :kind==='averages'?averagesView()
+  :kind==='matesprog'?teammateProgressView()
+  :kind==='finishdist'?finishDistView()
+  :kind==='titlefight'?titleFightView()
   :pointsChart(done,mode);
- const canExport=kind!=='h2h';
+ const canExport=['pts','rank','form','pred','compare'].includes(kind);
+ const btn=(id,label)=>`<button class="${kind===id?'on':''}" data-act="dashk" data-v="${id}">${label}</button>`;
  return`<div class="dash-card">
  <div class="dash-toolbar">
   <div class="seg dash-kinds">
-   <button class="${kind==='pts'?'on':''}" data-act="dashk" data-v="pts">Очки</button>
-   <button class="${kind==='rank'?'on':''}" data-act="dashk" data-v="rank">Места</button>
-   <button class="${kind==='form'?'on':''}" data-act="dashk" data-v="form">Форма</button>
-   <button class="${kind==='pred'?'on':''}" data-act="dashk" data-v="pred">Прогноз</button>
-   <button class="${kind==='h2h'?'on':''}" data-act="dashk" data-v="h2h">VS</button>
-   <button class="${kind==='compare'?'on':''}" data-act="dashk" data-v="compare">Годы</button>
+   ${btn('pts','Очки')}${btn('rank','Места')}${btn('form','Форма')}${btn('pred','Прогноз')}${btn('h2h','VS')}${btn('compare','Годы')}
+  </div>
+  <div class="seg dash-kinds">
+   ${btn('calendar','Календарь')}${btn('averages','Средние')}${btn('matesprog','Напарник')}${btn('finishdist','Финиши')}${btn('titlefight','Борьба')}
   </div>
   ${showMode||showFormWin?`<div class="dash-sub">
    ${showMode?`<div class="seg"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>`:''}
@@ -954,6 +1172,7 @@ function dashView(){
  ${body}
  ${canExport?`<div class="export-row"><button data-act="expsvg">Скачать SVG</button><button data-act="exppng">Скачать PNG</button></div>`:''}
 </div>`}
+
 
 function gpView(){
  const g=gp(),k=V.mode;
