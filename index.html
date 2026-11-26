@@ -283,6 +283,9 @@ function mapApiStatus(x){
  // +n laps or Finished → OK
  return 'OK';
 }
+function needsStatus(g){
+ return !g||!g.st||typeof g.st!=='object'||!Object.keys(g.st).length;
+}
 function raceSt(g,id){
  if(g.st&&g.st[id])return g.st[id];
  return null;
@@ -824,7 +827,7 @@ function h2hView(){
  }).join('');
  const qTot=qA+qB,rTot=rA+rB;
  return`<div class="card">
-  <div class="mu" style="margin-bottom:10px">Выберите двух пилотов для сравнения · сезон ${S.year}</div>
+  <div class="mu" style="margin-bottom:10px">Выберите двух пилотов для сравнения · сезон ${S.year}${yearGps().filter(fl).some(needsStatus)?' <span class="badge warn">нет статусов DNF — ⚙ → Обновить статусы</span>':''}</div>
   <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:end;margin-bottom:12px">
    <div>
     <div class="mu" style="margin-bottom:4px">Пилот 1</div>
@@ -1225,6 +1228,7 @@ function setView(){
 <button class="pr" data-act="sync" style="width:100%;margin-top:4px">Расписание + результаты ${S.year}</button>
 <div class="mu" style="margin-top:6px">«Расписание» — только список гран-при (удобно для будущих сезонов).<br>«Расписание + результаты» — ещё и финиши уже прошедших этапов. Ваши введённые результаты не затираются.</div>
  <button data-act="hist" style="width:100%;margin-top:10px">Загрузить историю с 2020 года</button><div class="mu" style="margin-top:6px">Добавит все завершённые гран-при с 2020 по текущий год. Уже заполненные этапы не перезаписываются. Загрузка займёт несколько минут.</div>
+ <button data-act="refstatus" style="width:100%;margin-top:10px">Обновить статусы DNF / DNS / DSQ</button><div class="mu" style="margin-top:6px">Заново загрузит результаты текущего сезона и подставит статусы (сход, не старт, дисквалификация). Нужно один раз после обновления программы — иначе в VS вместо DNF показывается место и 0 очков.</div>
  <button data-act="fixteams" style="width:100%;margin-top:10px">Исправить привязку пилотов к командам</button><div class="mu" style="margin-top:6px">Перезагрузит результаты всех этапов и заново сопоставит пилотов с командами (AlphaTauri→Racing Bulls, Sauber→Audi и т.д.). Нужно, если колонки команд выглядят неправильно.</div>
  <button data-act="dedupe" style="width:100%;margin-top:10px">Удалить дубликаты пилотов</button><div class="mu" style="margin-top:6px">Сливает повторяющиеся записи (например несколько «de Vries» → один пилот) и чистит периоды.</div>
  <button data-act="rebuild" style="width:100%;margin-top:10px">Очистить периоды команд</button><div class="mu" style="margin-top:6px">Убирает мусорные строки «McLaren 1–1, McLaren 2–2…» у пилотов. Периоды пересобираются по фактическим результатам этапов.</div></div>
@@ -1329,7 +1333,7 @@ async function syncAll(){
   T.Races.forEach(r=>{let g=S.gps.find(x=>x.r==+r.round&&gy(x)==S.year);if(!g){g={id:'g'+S.year+'r'+r.round+Date.now(),n:r.raceName,r:+r.round,y:S.year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]},st:{}};S.gps.push(g)}if(!g.n||g.n=='Новый гран-при')g.n=r.raceName;g.d=r.date;g.y=S.year;if(r.Sprint)g.sp=true});
   S.gps=sortGps(S.gps);save();render()}
  catch(e){toast('Не удалось загрузить расписание ('+String(e&&e.message||e)+'). Повторите позже.');return}
- const td=new Date().toISOString().slice(0,10),todo=S.gps.filter(g=>gy(g)==S.year&&g.d&&g.d<=td&&(!fl(g)||!g.at||!g.st));
+ const td=new Date().toISOString().slice(0,10),todo=S.gps.filter(g=>gy(g)==S.year&&g.d&&g.d<=td&&(!fl(g)||!g.at||needsStatus(g)));
  let n=0,ok=0,fail=0;MS=[];
  for(const g of todo){
   toast('Загружаю '+(++n)+' из '+todo.length+': '+g.n);
@@ -1340,6 +1344,26 @@ async function syncAll(){
  }
  const ms=[...new Set(MS)];
  toast('Готово: загружено '+ok+' из '+todo.length+(fail?'. Не удалось: '+fail+' (нажмите кнопку ещё раз)':'')+(ms.length?'. Новые пилоты: '+ms.join(', '):''))}
+async function refreshStatuses(){
+ const Y=S.year;
+ const todo=sortGps(S.gps.filter(g=>gy(g)===Y&&fl(g)));
+ if(!todo.length){toast('Нет завершённых этапов в '+Y);return}
+ toast('Обновляю статусы (DNF/DNS) для '+todo.length+' этапов…');
+ let ok=0,fail=0;MS=[];
+ for(let i=0;i<todo.length;i++){
+  const g=todo[i];
+  // force reload results + status
+  const keepPred=g.pred;
+  g.race=[];g.spr=[];g.q=[];g.at={};g.st={};g.stSpr={};g.ov=g.ov||{};
+  if(keepPred)g.pred=keepPred;
+  toast('Статусы '+(i+1)+'/'+todo.length+': '+g.n);
+  const r=await loadGp(g);
+  if(r>0)ok++;else if(r<0){fail++;await new Promise(z=>setTimeout(z,2500))}
+  await new Promise(z=>setTimeout(z,1500));
+ }
+ V.set=false;render();
+ toast('Статусы обновлены: '+ok+' этапов'+(fail?'. Ошибок: '+fail+' — нажмите ещё раз':'')+'. Теперь DNF видны в VS и таблице.');
+}
 async function loadHist(){
  const cur=new Date().getFullYear(),from=2020;let totalOk=0,stop=false;MS=[];
  for(let y=from;y<=cur;y++){
@@ -1519,7 +1543,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
  else if(a=='newd'){const f=Math.max(0,...S.gps.filter(fl).map(g=>g.r))+1;S.drv.push({id:'d'+Date.now(),n:'Новый пилот',s:[{t:0,f,u:null}]})}
  else if(a=='delp'){if(V.dd==d.id){S.drv=S.drv.filter(z=>z.id!=d.id);S.gps.forEach(g=>['race','spr','q'].forEach(k=>g[k]=g[k].filter(x=>x!=d.id)));V.dd=null}else V.dd=d.id}
  else if(a=='set')V.set=true;else if(a=='x')V.set=false;
- else if(a=='sched')return sched();else if(a=='sync')return syncAll();else if(a=='hist')return loadHist();else if(a=='fixteams')return fixTeams();else if(a=='dedupe'){const n=dedupeDrivers();toast(n?'Слито дубликатов: '+n:'Дубликатов не найдено; периоды обновлены');V.set=false;render();return}
+ else if(a=='sched')return sched();else if(a=='sync')return syncAll();else if(a=='hist')return loadHist();else if(a=='refstatus')return refreshStatuses();else if(a=='fixteams')return fixTeams();else if(a=='dedupe'){const n=dedupeDrivers();toast(n?'Слито дубликатов: '+n:'Дубликатов не найдено; периоды обновлены');V.set=false;render();return}
  else if(a=='rebuild'){rebuildPeriods();toast('Периоды команд пересобраны по результатам');V.set=false;render();return}
  else if(a=='load')return loadGp(g);
  else if(a=='publish')return downloadData();
