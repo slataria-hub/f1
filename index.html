@@ -181,72 +181,128 @@ function lastAutoSyncAt(){
 function markAutoSync(){
  try{localStorage.setItem('f1autoSyncAt',String(Date.now()))}catch(e){}
 }
-/** Тихая автозагрузка: расписание года + недостающие результаты + статусы. Не затирает уже заполненное. */
+function loadedYears(){
+ const ys=new Set();
+ (S.gps||[]).forEach(g=>{const y=gy(g);if(y)ys.add(y)});
+ return [...ys].sort((a,b)=>a-b);
+}
+function autoSyncQueue(){
+ const td=new Date().toISOString().slice(0,10);
+ const years=loadedYears();
+ const needRes=[],needSt=[];
+ years.forEach(year=>{
+  S.gps.filter(g=>gy(g)===year&&g.d&&g.d<=td&&!fl(g)).forEach(g=>needRes.push(g));
+  S.gps.filter(g=>gy(g)===year&&fl(g)&&needsStatus(g)).forEach(g=>needSt.push(g));
+ });
+ return{years,needRes,needSt,total:needRes.length+needSt.length};
+}
+function autoSyncStats(){
+ const q=autoSyncQueue();
+ const years=loadedYears();
+ let filled=0,past=0;
+ const td=new Date().toISOString().slice(0,10);
+ years.forEach(year=>{
+  S.gps.filter(g=>gy(g)===year&&g.d&&g.d<=td).forEach(g=>{
+   past++;
+   if(fl(g)&&!needsStatus(g))filled++;
+   else if(fl(g)&&needsStatus(g)){/* has results, missing st */}
+  });
+ });
+ const withRes=(S.gps||[]).filter(fl).length;
+ const withSt=(S.gps||[]).filter(g=>fl(g)&&!needsStatus(g)).length;
+ return{years,needRes:q.needRes.length,needSt:q.needSt.length,left:q.total,withRes,withSt,past};
+}
+function setAutoProg(p){
+ V.autoProg=p;
+ // update live counters in open settings without full re-render of sheet scroll jump
+ const a=$('#autoDone'),b=$('#autoLeft'),c=$('#autoLabel'),bar=$('#autoBar');
+ if(a&&p){a.textContent=String(p.done||0)}
+ if(b&&p){b.textContent=String(Math.max(0,(p.total||0)-(p.done||0)))}
+ if(c&&p){c.textContent=p.label||''}
+ if(bar&&p&&p.total){bar.style.width=Math.min(100,Math.round(100*(p.done||0)/p.total))+'%'}
+}
+/** Автозагрузка по всем сезонам, которые уже есть в данных. Не затирает заполненное. */
 async function autoSyncCurrentYear(force){
+ if(V.autoProg&&V.autoProg.running){if(force)toast('Автообновление уже идёт…');return}
  if(!autoSyncEnabled()&&!force)return;
- // не чаще чем раз в 30 минут (если не force)
  if(!force&&Date.now()-lastAutoSyncAt()<30*60*1000)return;
- const year=S.year||new Date().getFullYear();
  const td=new Date().toISOString().slice(0,10);
  try{
-  // 1) schedule for year
-  try{
-   const T=await jget(API+year+'.json');
-   if(T.Races&&T.Races.length){
-    T.Races.forEach(r=>{
-     let g=S.gps.find(x=>x.r==+r.round&&gy(x)==year);
-     if(!g){
-      g={id:'g'+year+'r'+r.round+Date.now(),n:r.raceName,r:+r.round,y:year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]},st:{},d:r.date||null};
-      S.gps.push(g);
-     }else{
-      if(!g.n||g.n==='Новый гран-при')g.n=r.raceName;
-      if(r.date)g.d=r.date;
-      g.y=year;
-      if(r.Sprint)g.sp=true;
-     }
-    });
-    S.gps=sortGps(S.gps);
-   }
-  }catch(e){/* schedule may 404 for future */ }
+  const years=loadedYears();
+  if(!years.length){years.push(S.year||new Date().getFullYear())}
+  // 1) refresh schedules for each known year (adds missing GP rows only)
+  for(const year of years){
+   try{
+    const T=await jget(API+year+'.json');
+    if(T.Races&&T.Races.length){
+     T.Races.forEach(r=>{
+      let g=S.gps.find(x=>x.r==+r.round&&gy(x)==year);
+      if(!g){
+       g={id:'g'+year+'r'+r.round+Date.now(),n:r.raceName,r:+r.round,y:year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]},st:{},d:r.date||null};
+       S.gps.push(g);
+      }else{
+       if(!g.n||g.n==='Новый гран-при')g.n=r.raceName;
+       if(r.date)g.d=r.date;
+       g.y=year;
+       if(r.Sprint)g.sp=true;
+      }
+     });
+    }
+   }catch(e){}
+   await new Promise(z=>setTimeout(z,400));
+  }
+  S.gps=sortGps(S.gps);
 
-  // 2) missing results for past races
-  const needRes=S.gps.filter(g=>gy(g)===year&&g.d&&g.d<=td&&!fl(g));
-  // 3) missing statuses
-  const needSt=S.gps.filter(g=>gy(g)===year&&fl(g)&&needsStatus(g));
-  if(!needRes.length&&!needSt.length){
+  const q=autoSyncQueue();
+  if(!q.total){
    markAutoSync();
+   setAutoProg({running:false,done:0,total:0,label:'Всё актуально'});
+   if(force)toast('Все загруженные сезоны уже полные — обновлять нечего.');
+   if(V.set)render();
    return;
   }
-  toast('Автообновление: результатов '+needRes.length+', статусов '+needSt.length+'…');
-  let ok=0,fail=0;
-  for(const g of needRes){
+  setAutoProg({running:true,done:0,total:q.total,label:'Старт…'});
+  if(V.set)render();
+  toast('Автообновление: '+q.needRes.length+' рез. + '+q.needSt.length+' стат. · сезоны '+q.years[0]+'–'+q.years[q.years.length-1]);
+
+  let ok=0,fail=0,done=0;
+  for(const g of q.needRes){
+   setAutoProg({running:true,done:done,total:q.total,label:gy(g)+' · результат · '+g.n});
    const r=await loadGp(g);
    if(r>0)ok++;else if(r<0){fail++;await new Promise(z=>setTimeout(z,2000))}
+   done++;setAutoProg({running:true,done:done,total:q.total,label:gy(g)+' · результат · '+g.n});
    await new Promise(z=>setTimeout(z,1400));
   }
-  for(const g of needSt){
+  for(const g of q.needSt){
+   setAutoProg({running:true,done:done,total:q.total,label:gy(g)+' · статус · '+g.n});
    try{
     const yr=gy(g),b=API+yr+'/'+g.r+'/';
     const T=await jget(b+'results.json');
     const ra=((T&&T.Races&&T.Races[0])||{}).Results||[];
-    if(!ra.length)continue;
-    if(!g.st)g.st={};
-    ra.forEach(x=>{
-     const c=findDrivers(x.Driver.givenName,x.Driver.familyName);
-     let d=c.find(d=>(g.race||[]).includes(d.id))||c.find(d=>(g.q||[]).includes(d.id))||c[0];
-     if(d)g.st[d.id]=mapApiStatus(x);
-    });
-    ok++;
-    save();
+    if(ra.length){
+     if(!g.st)g.st={};
+     ra.forEach(x=>{
+      const c=findDrivers(x.Driver.givenName,x.Driver.familyName);
+      let d=c.find(d=>(g.race||[]).includes(d.id))||c.find(d=>(g.q||[]).includes(d.id))||c[0];
+      if(d)g.st[d.id]=mapApiStatus(x);
+     });
+     ok++;save();
+    }
    }catch(e){fail++;await new Promise(z=>setTimeout(z,2000))}
+   done++;setAutoProg({running:true,done:done,total:q.total,label:gy(g)+' · статус · '+g.n});
    await new Promise(z=>setTimeout(z,1200));
   }
   markAutoSync();
   save();
+  setAutoProg({running:false,done:done,total:q.total,label:'Готово'});
   render();
-  if(ok||fail)toast('Автообновление готово: +'+ok+(fail?', ошибок: '+fail:'')+'. Скачайте data.json и положите на GitHub, чтобы поделиться.');
- }catch(e){console.error('autoSync',e)}
+  toast('Автообновление: готово '+ok+(fail?', ошибок: '+fail:'')+'. Сезоны: '+years.join(', ')+'. Скачайте data.json → GitHub.');
+ }catch(e){
+  console.error('autoSync',e);
+  setAutoProg({running:false,done:0,total:0,label:'Ошибка'});
+ }
 }
+
 
 async function boot(){
  let local=null;try{local=JSON.parse(localStorage.getItem('f1app'))}catch(e){}
@@ -1373,11 +1429,25 @@ function setView(){
   <div class="row" style="align-items:center;gap:10px">
    <div style="flex:1">
     <div style="font-weight:700">Автообновление</div>
-    <div class="mu" style="margin-top:4px">При открытии сайта подтягивает новые результаты и статусы DNF текущего сезона. Уже заполненное не затирается. Не чаще раза в 30 минут.</div>
+    <div class="mu" style="margin-top:4px">При открытии сайта проверяет <b>все уже загруженные сезоны</b>: недостающие результаты и статусы DNF. Заполненное не затирается. Не чаще раза в 30 минут.</div>
    </div>
    <button data-act="autotog" class="${autoSyncEnabled()?'pr':''}" style="min-width:90px">${autoSyncEnabled()?'Вкл':'Выкл'}</button>
   </div>
-  <button data-act="autorun" style="width:100%;margin-top:10px">Обновить сейчас</button>
+  ${(()=>{const st=autoSyncStats();const pr=V.autoProg||{};const run=!!pr.running;const total=run?pr.total:st.left;const done=run?pr.done:0;const left=run?Math.max(0,total-done):st.left;const pct=total?Math.min(100,Math.round(100*done/total)):0;
+   return`<div style="margin-top:12px;padding:10px;background:rgba(127,127,127,.06);border-radius:10px">
+    <div class="row" style="gap:12px;flex-wrap:wrap">
+     <div><div class="mu">Сезонов</div><b>${st.years.length?st.years[0]+'–'+st.years[st.years.length-1]:'—'}</b></div>
+     <div><div class="mu">С результатами</div><b>${st.withRes}</b></div>
+     <div><div class="mu">Со статусами</div><b>${st.withSt}</b></div>
+     <div><div class="mu">Загружено</div><b id="autoDone">${done}</b></div>
+     <div><div class="mu">Осталось</div><b id="autoLeft">${left}</b></div>
+    </div>
+    <div style="margin-top:8px;height:10px;background:var(--ln);border-radius:6px;overflow:hidden">
+     <div id="autoBar" style="height:100%;width:${run?pct:(st.left?0:100)}%;background:var(--ac);transition:width .3s"></div>
+    </div>
+    <div class="mu" style="margin-top:6px" id="autoLabel">${run?(pr.label||'Идёт обновление…'):(st.left?('Ждёт обновления: '+st.needRes+' рез., '+st.needSt+' стат.'):'Всё актуально')}</div>
+   </div>`})()}
+  <button data-act="autorun" style="width:100%;margin-top:10px" ${V.autoProg&&V.autoProg.running?'disabled':''}>${V.autoProg&&V.autoProg.running?'Обновление…':'Обновить все сезоны сейчас'}</button>
  </div>
  <button data-act="hist" style="width:100%;margin-top:10px">Загрузить историю с 2020 года</button><div class="mu" style="margin-top:6px">Добавит все завершённые гран-при с 2020 по текущий год. Уже заполненные этапы не перезаписываются. Загрузка займёт несколько минут.</div>
  <button data-act="refstatus" style="width:100%;margin-top:10px">Обновить статусы DNF / DNS / DSQ</button><div class="mu" style="margin-top:6px">Подтянет статусы DNF/DNS/DSQ только для этапов, где их ещё нет. Уже обновлённые этапы пропускаются. Результаты и очки не меняются.</div>
