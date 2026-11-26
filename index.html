@@ -50,7 +50,7 @@ tfoot td,tfoot th{border-bottom:0;font-weight:700;border-top:2px solid var(--ln)
 nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--sf);border-top:1px solid var(--ln);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));gap:4px;z-index:20}
 nav button{flex:1;border:0;background:none;font-weight:600;color:var(--mu);font-size:13px;padding:8px 2px}nav .on{color:var(--tx);box-shadow:inset 0 -3px 0 var(--ac);border-radius:0}
 .row{display:flex;gap:8px;align-items:center;margin-bottom:8px}.row>*{flex:1}.row .n{flex:none}
-.sheet{position:fixed;inset:0;background:var(--bg);overflow:auto;padding:calc(12px + env(safe-area-inset-top,0px)) 14px 40px;z-index:5}
+.sheet{position:fixed;inset:0;background:var(--bg);overflow:auto;padding:calc(12px + env(safe-area-inset-top,0px)) 14px calc(24px + env(safe-area-inset-bottom,0px));z-index:40;-webkit-overflow-scrolling:touch}body.sheet-open,html.sheet-open{overflow:hidden!important;height:100%;overscroll-behavior:none}
 .rr{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px}
 .mu{color:var(--mu);font-size:13px}.gap{margin-top:14px}
 textarea{width:100%;height:90px;background:var(--bg);color:var(--tx);border:1px solid var(--ln);border-radius:8px;padding:8px}
@@ -1410,7 +1410,7 @@ function bindChartZoom(){
  box.addEventListener('pointerup',()=>{drag=null});
  box.addEventListener('dblclick',()=>{scale=1;tx=0;ty=0;apply()})}
 
-function render(){const o=$('.sheet'),st=o?o.scrollTop:0;$('#app').innerHTML=(V.gp?gpView():mainView())+(V.set?setView():'');const n=$('.sheet');if(n)n.scrollTop=st;if(V.tab==='dash'&&!V.gp)bindChartZoom();
+function render(){const o=$('.sheet'),st=o?o.scrollTop:0;$('#app').innerHTML=(V.gp?gpView():mainView())+(V.set?setView():'');const n=$('.sheet');if(n)n.scrollTop=st;document.body.classList.toggle('sheet-open',!!V.set);document.documentElement.classList.toggle('sheet-open',!!V.set);if(V.tab==='dash'&&!V.gp)bindChartZoom();
  if(V.set){const el=$('#metaLocal');if(el)el.textContent=(S.meta&&S.meta.updated)?S.meta.updated.replace('T',' ').slice(0,19):'нет';
   fetch(SHARED,{cache:'no-store'}).then(r=>r.ok?r.json():null).then(o=>{const e=$('#metaShared');if(e)e.textContent=(o&&o.meta&&o.meta.updated)?o.meta.updated.replace('T',' ').slice(0,19):'нет / старый формат'}).catch(()=>{const e=$('#metaShared');if(e)e.textContent='не удалось'})}
 }
