@@ -156,6 +156,7 @@ select#h2hSelectA,select#h2hSelectB{background:var(--sf)!important;color:var(--t
 .fight-out{color:var(--mu)}
 .dash-kinds{gap:6px}
 .dash-kinds button{font-size:13px;padding:8px 10px;min-width:auto}
+.avg-table th[data-act]:hover{color:var(--ac)}
 </style></head><body>
 <div id="app"></div><div id="toast"></div>
 <script>
@@ -164,7 +165,7 @@ const T0=[["McLaren","#ff8000","Lando Norris","Oscar Piastri"],["Ferrari","#e800
 function init(){let n=0;return{year:2026,gps:[],teams:T0.map(t=>({n:t[0],c:t[1]})),drv:T0.flatMap((t,i)=>[t[2],t[3]].map(x=>({id:'d'+n++,n:x,s:[{t:i,f:1,u:null}]})))}}
 function mig(o){if(!o.drv){o.drv=o.teams.flatMap((t,i)=>t.d.map(d=>({id:d.id,n:d.n,s:[{t:i,f:1,u:null}]})));o.teams.forEach(t=>delete t.d)}if(o.gps)o.gps.forEach(g=>{if(g.y==null)g.y=o.year||2025});return o}
 let S=init();
-const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'d',dashKind:'pts',dashIdx:null,dashFocus:null,formWin:5,h2hA:null,h2hB:null,cmpYears:[],matesMode:'quali',booting:true};
+const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'d',dashKind:'pts',dashIdx:null,dashFocus:null,formWin:5,h2hA:null,h2hB:null,cmpYears:[],matesMode:'quali',avgSort:{col:'avgR',dir:1},booting:true};
 const save=()=>{try{if(!S.meta)S.meta={};S.meta.updated=new Date().toISOString();localStorage.setItem('f1app',JSON.stringify(S))}catch(e){}};
 const SHARED='./data.json';
 async function boot(){
@@ -975,6 +976,7 @@ function calendarView(){
 function averagesView(){
  const Y=yearGps().filter(fl);
  if(!Y.length)return`<div class="em"><h2>Нет результатов</h2><p>Загрузите результаты сезона ${S.year}.</p></div>`;
+ if(!V.avgSort)V.avgSort={col:'avgR',dir:1};
  const rows=S.drv.filter(d=>Y.some(g=>part(g,d.id))).map(d=>{
   let rq=0,nq=0,rr=0,nr=0,starts=0,pts=dT(d.id),dnf=0;
   Y.forEach(g=>{
@@ -991,11 +993,31 @@ function averagesView(){
   });
   return{id:d.id,n:d.n,c:dc(d,Y[Y.length-1]||{}),
    avgQ:nq?rq/nq:null,avgR:nr?rr/nr:null,starts,dnf,pts,nq,nr};
- }).sort((a,b)=>(a.avgR==null)-(b.avgR==null)||(a.avgR||99)-(b.avgR||99)||b.pts-a.pts);
+ });
+ const col=V.avgSort.col,dir=V.avgSort.dir;
+ const nullsLast=(v,d)=>{
+  if(v==null||v===undefined)return d>0?1e9:-1e9;
+  return v;
+ };
+ rows.sort((a,b)=>{
+  let va=a[col],vb=b[col];
+  if(col==='n'){va=a.n.toLowerCase();vb=b.n.toLowerCase();return va<vb?-dir:(va>vb?dir:0)}
+  va=nullsLast(va,dir);vb=nullsLast(vb,dir);
+  if(va!==vb)return va<vb?-dir:(va>vb?dir:0);
+  return b.pts-a.pts;
+ });
  const fmt=v=>v==null?'—':v.toFixed(1);
+ const arrow=c=>V.avgSort.col===c?(V.avgSort.dir>0?' ▲':' ▼'):'';
+ const th=(c,label,title)=>`<th data-act="avgsort" data-v="${c}" style="cursor:pointer;user-select:none" title="${title||'Сортировать'}">${label}${arrow(c)}</th>`;
  return`<div class="card" style="overflow:auto">
  <table class="avg-table"><thead><tr>
-  <th>#</th><th>Пилот</th><th>Ср. квал.</th><th>Ср. гонка</th><th>Стартов</th><th>DNF</th><th>Очки</th>
+  <th>#</th>
+  ${th('n','Пилот','По имени')}
+  ${th('avgQ','Ср. квал.','Меньше — лучше')}
+  ${th('avgR','Ср. гонка','Меньше — лучше')}
+  ${th('starts','Стартов')}
+  ${th('dnf','DNF')}
+  ${th('pts','Очки','Больше — лучше')}
  </tr></thead><tbody>
  ${rows.map((r,i)=>`<tr>
   <td>${i+1}</td>
@@ -1004,8 +1026,9 @@ function averagesView(){
   <td>${r.starts}</td><td>${r.dnf||'—'}</td><td>${r.pts}</td>
  </tr>`).join('')}
  </tbody></table></div>
- <p class="mu" style="margin:8px 4px 0">Средняя гонка — только классифицированные финиши; DNF в среднее не входят.</p>`;
+ <p class="mu" style="margin:8px 4px 0">Нажмите на заголовок столбца, чтобы отсортировать. Повторный клик — обратный порядок. Средняя гонка — только классифицированные финиши; DNF в среднее не входят.</p>`;
 }
+
 
 function teammateProgressView(){
  const Y=yearGps().filter(fl);
@@ -1562,7 +1585,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
  else if(a=='dashk'){V.dashKind=d.v;V.dashFocus=null;render();return}
  else if(a=='dashi'){V.dashIdx=+d.i;render();return}
  else if(a=='dashf'){V.dashFocus=V.dashFocus===d.id?null:d.id;render();return}
- else if(a=='matesm'){V.matesMode=d.v;render();return}else if(a=='formw'){V.formWin=+d.v;render();return}
+ else if(a=='matesm'){V.matesMode=d.v;render();return}else if(a=='avgsort'){const c=d.v;if(V.avgSort&&V.avgSort.col===c)V.avgSort.dir*=-1;else V.avgSort={col:c,dir:c==='pts'||c==='starts'||c==='dnf'?-1:1};render();return}else if(a=='formw'){V.formWin=+d.v;render();return}
  else if(a=='h2hset'){if(d.side==='a'){V.h2hA=d.id;if(V.h2hA===V.h2hB){const o=S.drv.find(x=>x.id!==V.h2hA);if(o)V.h2hB=o.id}}else{V.h2hB=d.id;if(V.h2hA===V.h2hB){const o=S.drv.find(x=>x.id!==V.h2hB);if(o)V.h2hA=o.id}}render();return}
  else if(a=='h2hswap'){const t=V.h2hA;V.h2hA=V.h2hB;V.h2hB=t;render();return}
  else if(a=='expsvg'){exportChart();return}
