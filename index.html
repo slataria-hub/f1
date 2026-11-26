@@ -164,7 +164,7 @@ const T0=[["McLaren","#ff8000","Lando Norris","Oscar Piastri"],["Ferrari","#e800
 function init(){let n=0;return{year:2026,gps:[],teams:T0.map(t=>({n:t[0],c:t[1]})),drv:T0.flatMap((t,i)=>[t[2],t[3]].map(x=>({id:'d'+n++,n:x,s:[{t:i,f:1,u:null}]})))}}
 function mig(o){if(!o.drv){o.drv=o.teams.flatMap((t,i)=>t.d.map(d=>({id:d.id,n:d.n,s:[{t:i,f:1,u:null}]})));o.teams.forEach(t=>delete t.d)}if(o.gps)o.gps.forEach(g=>{if(g.y==null)g.y=o.year||2025});return o}
 let S=init();
-const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'d',dashKind:'pts',dashIdx:null,dashFocus:null,formWin:5,h2hA:null,h2hB:null,cmpYears:[],booting:true};
+const V={tab:'gps',gp:null,mode:'r',set:false,del:false,dashMode:'d',dashKind:'pts',dashIdx:null,dashFocus:null,formWin:5,h2hA:null,h2hB:null,cmpYears:[],matesMode:'quali',booting:true};
 const save=()=>{try{if(!S.meta)S.meta={};S.meta.updated=new Date().toISOString();localStorage.setItem('f1app',JSON.stringify(S))}catch(e){}};
 const SHARED='./data.json';
 async function boot(){
@@ -509,13 +509,22 @@ function standView(){
  }
 }
 
-function matesView(){const P={},K=(i,x,y)=>i+x.id+y.id;const Y=yearGps();
+function matesView(){
+ const mode=V.matesMode||'quali';
+ const tabs=`<div class="seg" style="margin-bottom:12px">
+  <button class="${mode==='quali'?'on':''}" data-act="matesm" data-v="quali">Квалификация</button>
+  <button class="${mode==='season'?'on':''}" data-act="matesm" data-v="season">Сезон / очки</button>
+ </div>`;
+ if(mode==='season')return tabs+teammateProgressView();
+ const P={},K=(i,x,y)=>i+x.id+y.id;const Y=yearGps();
  S.teams.forEach((t,i)=>{const c=S.drv.filter(d=>Y.some(g=>tm(d,g)===i));if(c.length>1){const pairs=[];for(let a=0;a<c.length;a++)for(let b=a+1;b<c.length;b++)pairs.push([c[a],c[b]]);pairs.forEach(([x,y])=>{P[K(i,x,y)]={i,x,y,a:0,b:0}})}});
  Y.forEach(g=>S.teams.forEach((t,i)=>{const m=S.drv.filter(d=>tm(d,g)==i&&(!fl(g)||part(g,d.id)));if(m.length<2)return;for(let a=0;a<m.length;a++)for(let b=a+1;b<m.length;b++){const x=m[a],y=m[b],p=P[K(i,x,y)]||(P[K(i,x,y)]={i,x,y,a:0,b:0}),u=g.q.indexOf(x.id),v=g.q.indexOf(y.id);if(u<0&&v<0)return;if(v<0||(u>=0&&u<v))p.a++;else p.b++}}));
  const rows=Object.values(P).filter(p=>p.a+p.b>0).sort((p,q)=>p.i-q.i);
- if(!rows.length)return`<div class="em"><h2>Нет сравнений за ${S.year}</h2><p>Нужны результаты квалификации выбранного сезона.</p></div>`;
- return rows.map(p=>{const t=S.teams[p.i],s=p.a+p.b||1;
-  return`<div class="card"><div class="sc"><span style="color:var(--tx)">${esc(p.x.n)}</span>${p.a} : ${p.b}<span style="color:var(--tx)">${esc(p.y.n)}</span></div><div class="bar"><i style="width:${p.a/s*100}%;background:${t.c}"></i><i style="width:${p.b/s*100}%;background:${t.c};opacity:.35"></i></div><div class="mu" style="margin-top:6px">${esc(teamName(p.i))} · ${S.year}: сравнений квалификации — ${p.a+p.b}</div></div>`}).join('')}
+ if(!rows.length)return tabs+`<div class="em"><h2>Нет сравнений за ${S.year}</h2><p>Нужны результаты квалификации выбранного сезона.</p></div>`;
+ return tabs+rows.map(p=>{const t=S.teams[p.i],s=p.a+p.b||1;
+  return`<div class="card"><div class="sc"><span style="color:var(--tx)">${esc(p.x.n)}</span>${p.a} : ${p.b}<span style="color:var(--tx)">${esc(p.y.n)}</span></div><div class="bar"><i style="width:${p.a/s*100}%;background:${t.c}"></i><i style="width:${p.b/s*100}%;background:${t.c};opacity:.45"></i></div><div class="mu">${esc(t.n)} · квалификация</div></div>`}).join('');
+}
+
 
 const FLAG=[
  ['australia','🇦🇺'],['australian','🇦🇺'],['china','🇨🇳'],['chinese','🇨🇳'],['japan','🇯🇵'],['japanese','🇯🇵'],
@@ -1164,7 +1173,7 @@ function dashView(){
    ${btn('pts','Очки')}${btn('rank','Места')}${btn('form','Форма')}${btn('pred','Прогноз')}${btn('h2h','VS')}${btn('compare','Годы')}
   </div>
   <div class="seg dash-kinds">
-   ${btn('calendar','Календарь')}${btn('averages','Средние')}${btn('matesprog','Напарник')}${btn('finishdist','Финиши')}${btn('titlefight','Борьба')}
+   ${btn('calendar','Календарь')}${btn('averages','Средние')}${btn('finishdist','Финиши')}${btn('titlefight','Борьба')}
   </div>
   ${showMode||showFormWin?`<div class="dash-sub">
    ${showMode?`<div class="seg"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>`:''}
@@ -1228,7 +1237,7 @@ function setView(){
 <button class="pr" data-act="sync" style="width:100%;margin-top:4px">Расписание + результаты ${S.year}</button>
 <div class="mu" style="margin-top:6px">«Расписание» — только список гран-при (удобно для будущих сезонов).<br>«Расписание + результаты» — ещё и финиши уже прошедших этапов. Ваши введённые результаты не затираются.</div>
  <button data-act="hist" style="width:100%;margin-top:10px">Загрузить историю с 2020 года</button><div class="mu" style="margin-top:6px">Добавит все завершённые гран-при с 2020 по текущий год. Уже заполненные этапы не перезаписываются. Загрузка займёт несколько минут.</div>
- <button data-act="refstatus" style="width:100%;margin-top:10px">Обновить статусы DNF / DNS / DSQ</button><div class="mu" style="margin-top:6px">Заново загрузит результаты текущего сезона и подставит статусы (сход, не старт, дисквалификация). Нужно один раз после обновления программы — иначе в VS вместо DNF показывается место и 0 очков.</div>
+ <button data-act="refstatus" style="width:100%;margin-top:10px">Обновить статусы DNF / DNS / DSQ</button><div class="mu" style="margin-top:6px">Подтянет только статусы DNF/DNS/DSQ из базы F1. Уже введённые результаты и очки не удаляются.</div>
  <button data-act="fixteams" style="width:100%;margin-top:10px">Исправить привязку пилотов к командам</button><div class="mu" style="margin-top:6px">Перезагрузит результаты всех этапов и заново сопоставит пилотов с командами (AlphaTauri→Racing Bulls, Sauber→Audi и т.д.). Нужно, если колонки команд выглядят неправильно.</div>
  <button data-act="dedupe" style="width:100%;margin-top:10px">Удалить дубликаты пилотов</button><div class="mu" style="margin-top:6px">Сливает повторяющиеся записи (например несколько «de Vries» → один пилот) и чистит периоды.</div>
  <button data-act="rebuild" style="width:100%;margin-top:10px">Очистить периоды команд</button><div class="mu" style="margin-top:6px">Убирает мусорные строки «McLaren 1–1, McLaren 2–2…» у пилотов. Периоды пересобираются по фактическим результатам этапов.</div></div>
@@ -1348,21 +1357,46 @@ async function refreshStatuses(){
  const Y=S.year;
  const todo=sortGps(S.gps.filter(g=>gy(g)===Y&&fl(g)));
  if(!todo.length){toast('Нет завершённых этапов в '+Y);return}
- toast('Обновляю статусы (DNF/DNS) для '+todo.length+' этапов…');
- let ok=0,fail=0;MS=[];
+ toast('Обновляю только статусы (результаты не трогаю)…');
+ let ok=0,fail=0;
  for(let i=0;i<todo.length;i++){
   const g=todo[i];
-  // force reload results + status
-  const keepPred=g.pred;
-  g.race=[];g.spr=[];g.q=[];g.at={};g.st={};g.stSpr={};g.ov=g.ov||{};
-  if(keepPred)g.pred=keepPred;
   toast('Статусы '+(i+1)+'/'+todo.length+': '+g.n);
-  const r=await loadGp(g);
-  if(r>0)ok++;else if(r<0){fail++;await new Promise(z=>setTimeout(z,2500))}
-  await new Promise(z=>setTimeout(z,1500));
+  try{
+   const yr=gy(g),b=API+yr+'/'+g.r+'/';
+   const T=await jget(b+'results.json');
+   const race=(T&&T.Races&&T.Races[0])||null;
+   const ra=race&&race.Results||[];
+   if(!ra.length){fail++;continue}
+   if(!g.st)g.st={};
+   ra.forEach(x=>{
+    const c=findDrivers(x.Driver.givenName,x.Driver.familyName);
+    // match existing id from race/q/at first
+    let d=c.find(d=>(g.race||[]).includes(d.id))||c.find(d=>(g.q||[]).includes(d.id))||c.find(d=>g.at&&g.at[d.id]!=null)||c[0];
+    if(d)g.st[d.id]=mapApiStatus(x);
+   });
+   // sprint statuses if any
+   if(g.sp||(g.spr&&g.spr.length)){
+    try{
+     const ST=await jget(b+'sprint.json');
+     const sr=((ST&&ST.Races&&ST.Races[0])||{}).SprintResults||[];
+     if(!g.stSpr)g.stSpr={};
+     sr.forEach(x=>{
+      const c=findDrivers(x.Driver.givenName,x.Driver.familyName);
+      let d=c.find(d=>(g.spr||[]).includes(d.id))||c[0];
+      if(d)g.stSpr[d.id]=mapApiStatus(x);
+     });
+    }catch(e){}
+   }
+   ok++;save();
+  }catch(e){
+   console.error(g.n,e);fail++;
+   await new Promise(z=>setTimeout(z,2500));
+  }
+  await new Promise(z=>setTimeout(z,1200));
  }
  V.set=false;render();
- toast('Статусы обновлены: '+ok+' этапов'+(fail?'. Ошибок: '+fail+' — нажмите ещё раз':'')+'. Теперь DNF видны в VS и таблице.');
+ toast('Статусы: обновлено '+ok+(fail?'. Ошибок: '+fail+' (повторите)':'')+'. Результаты гонок не изменялись.');
 }
 async function loadHist(){
  const cur=new Date().getFullYear(),from=2020;let totalOk=0,stop=false;MS=[];
@@ -1528,7 +1562,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
  else if(a=='dashk'){V.dashKind=d.v;V.dashFocus=null;render();return}
  else if(a=='dashi'){V.dashIdx=+d.i;render();return}
  else if(a=='dashf'){V.dashFocus=V.dashFocus===d.id?null:d.id;render();return}
- else if(a=='formw'){V.formWin=+d.v;render();return}
+ else if(a=='matesm'){V.matesMode=d.v;render();return}else if(a=='formw'){V.formWin=+d.v;render();return}
  else if(a=='h2hset'){if(d.side==='a'){V.h2hA=d.id;if(V.h2hA===V.h2hB){const o=S.drv.find(x=>x.id!==V.h2hA);if(o)V.h2hB=o.id}}else{V.h2hB=d.id;if(V.h2hA===V.h2hB){const o=S.drv.find(x=>x.id!==V.h2hB);if(o)V.h2hA=o.id}}render();return}
  else if(a=='h2hswap'){const t=V.h2hA;V.h2hA=V.h2hB;V.h2hB=t;render();return}
  else if(a=='expsvg'){exportChart();return}
