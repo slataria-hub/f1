@@ -722,6 +722,7 @@ function matesView(){
  if(!done.length&&!Y.some(g=>(g.q||[]).length)){
   return`<div class="em"><h2>Борьба напарников · ${S.year}</h2><p>Нужны результаты квалификации или гонок выбранного сезона.</p></div>`;
  }
+ const WIN='#2e7d32', LOSE='#c62828'; // насыщенные зелёный / красный
  const cards=[];
  activeTeams().forEach(({i,n,c})=>{
   const members=S.drv.filter(d=>Y.some(g=>tm(d,g)===i&&part(g,d.id)));
@@ -751,37 +752,40 @@ function matesView(){
     if(tm(B,g)===i)ptsB+=tot(g,B.id);
    });
    if(qA+qB+rA+rB+sA+sB===0&&ptsA+ptsB===0)return;
-   const ref=done[done.length-1]||Y[Y.length-1]||{};
-   const cA='#e57373',cB='#81c784'; // пастельные красный / зелёный для всех пар
+   // цвета шапки по очкам сезона
+   const headA=ptsA>ptsB?WIN:(ptsA<ptsB?LOSE:WIN);
+   const headB=ptsB>ptsA?WIN:(ptsB<ptsA?LOSE:WIN);
    const bar=(left,right,label)=>{
     const sum=left+right;
     if(!sum)return`<div style="margin-top:12px"><div class="mu" style="text-align:center;margin-bottom:4px">${label}</div><div class="mu" style="text-align:center;font-size:12px">нет общих сессий</div></div>`;
+    const cL=left>right?WIN:(left<right?LOSE:'#78909c');
+    const cR=right>left?WIN:(right<left?LOSE:'#78909c');
     const wL=left/sum*100,wR=right/sum*100;
     return`<div style="margin-top:12px">
      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:4px">
-      <span style="color:${cA};font-weight:700">${left}</span>
+      <span style="color:${cL};font-weight:700">${left}</span>
       <span class="mu">${label}</span>
-      <span style="color:${cB};font-weight:700">${right}</span>
+      <span style="color:${cR};font-weight:700">${right}</span>
      </div>
      <div class="bar" style="height:14px;display:flex;overflow:hidden;border-radius:8px;background:var(--ln)">
-      <i style="width:${wL}%;background:${cA};display:block;height:100%"></i>
-      <i style="width:${wR}%;background:${cB};display:block;height:100%"></i>
+      <i style="width:${wL}%;background:${cL};display:block;height:100%"></i>
+      <i style="width:${wR}%;background:${cR};display:block;height:100%"></i>
      </div>
     </div>`;
    };
    cards.push(`<div class="card mate-card">
     <div class="mu" style="margin-bottom:4px">${esc(n)} · ${S.year}</div>
     <div class="pair">
-     <span style="color:${cA}"><b>${esc(surname(A.n))}</b> · ${ptsA} очк.</span>
+     <span style="color:${headA}"><b>${esc(surname(A.n))}</b> · ${ptsA} очк.</span>
      <span class="mu">vs</span>
-     <span style="color:${cB}"><b>${esc(surname(B.n))}</b> · ${ptsB} очк.</span>
+     <span style="color:${headB}"><b>${esc(surname(B.n))}</b> · ${ptsB} очк.</span>
     </div>
     ${bar(qA,qB,'Квалификация')}
     ${bar(sA,sB,'Спринт')}
     ${bar(rA,rB,'Гонка')}
     <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:12px">
-     <span style="color:${cA}">● ${esc(surname(A.n))}</span>
-     <span style="color:${cB}">● ${esc(surname(B.n))}</span>
+     <span style="color:${headA}">● ${esc(surname(A.n))}</span>
+     <span style="color:${headB}">● ${esc(surname(B.n))}</span>
     </div>
    </div>`);
   });
@@ -789,6 +793,7 @@ function matesView(){
  if(!cards.length)return`<div class="em"><h2>Борьба напарников · ${S.year}</h2><p>Нет пар напарников с общими сессиями в этом сезоне.</p></div>`;
  return`<h2 style="margin:0 0 12px;font:700 20px var(--hd)">Борьба напарников · ${S.year}</h2>${cards.join('')}`;
 }
+
 
 
 
