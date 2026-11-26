@@ -650,20 +650,79 @@ function standView(){
 }
 
 function matesView(){
- const mode=V.matesMode||'quali';
- const tabs=`<div class="seg" style="margin-bottom:12px">
-  <button class="${mode==='quali'?'on':''}" data-act="matesm" data-v="quali">Квалификация</button>
-  <button class="${mode==='season'?'on':''}" data-act="matesm" data-v="season">Сезон / очки</button>
- </div>`;
- if(mode==='season')return tabs+teammateProgressView();
- const P={},K=(i,x,y)=>i+x.id+y.id;const Y=yearGps();
- S.teams.forEach((t,i)=>{const c=S.drv.filter(d=>Y.some(g=>tm(d,g)===i));if(c.length>1){const pairs=[];for(let a=0;a<c.length;a++)for(let b=a+1;b<c.length;b++)pairs.push([c[a],c[b]]);pairs.forEach(([x,y])=>{P[K(i,x,y)]={i,x,y,a:0,b:0}})}});
- Y.forEach(g=>S.teams.forEach((t,i)=>{const m=S.drv.filter(d=>tm(d,g)==i&&(!fl(g)||part(g,d.id)));if(m.length<2)return;for(let a=0;a<m.length;a++)for(let b=a+1;b<m.length;b++){const x=m[a],y=m[b],p=P[K(i,x,y)]||(P[K(i,x,y)]={i,x,y,a:0,b:0}),u=g.q.indexOf(x.id),v=g.q.indexOf(y.id);if(u<0&&v<0)return;if(v<0||(u>=0&&u<v))p.a++;else p.b++}}));
- const rows=Object.values(P).filter(p=>p.a+p.b>0).sort((p,q)=>p.i-q.i);
- if(!rows.length)return tabs+`<div class="em"><h2>Нет сравнений за ${S.year}</h2><p>Нужны результаты квалификации выбранного сезона.</p></div>`;
- return tabs+rows.map(p=>{const t=S.teams[p.i],s=p.a+p.b||1;
-  return`<div class="card"><div class="sc"><span style="color:var(--tx)">${esc(p.x.n)}</span>${p.a} : ${p.b}<span style="color:var(--tx)">${esc(p.y.n)}</span></div><div class="bar"><i style="width:${p.a/s*100}%;background:${t.c}"></i><i style="width:${p.b/s*100}%;background:${t.c};opacity:.45"></i></div><div class="mu">${esc(t.n)} · квалификация</div></div>`}).join('');
+ const Y=yearGps();
+ const done=Y.filter(fl);
+ if(!done.length&&!Y.some(g=>(g.q||[]).length)){
+  return`<div class="em"><h2>Борьба напарников · ${S.year}</h2><p>Нужны результаты квалификации или гонок выбранного сезона.</p></div>`;
+ }
+ const cards=[];
+ activeTeams().forEach(({i,n,c})=>{
+  const members=S.drv.filter(d=>Y.some(g=>tm(d,g)===i&&part(g,d.id)));
+  if(members.length<2)return;
+  const ranked=members.map(d=>({d,p:dTi(d,i)})).sort((a,b)=>b.p-a.p);
+  const pairs=[];
+  for(let a=0;a<Math.min(ranked.length,3);a++)
+   for(let b=a+1;b<Math.min(ranked.length,3);b++)
+    pairs.push([ranked[a].d,ranked[b].d]);
+  pairs.forEach(([A,B])=>{
+   let qA=0,qB=0,rA=0,rB=0,sA=0,sB=0,ptsA=0,ptsB=0;
+   Y.forEach(g=>{
+    if(tm(A,g)!==i&&tm(B,g)!==i)return;
+    const qiA=g.q.indexOf(A.id),qiB=g.q.indexOf(B.id);
+    const riA=g.race.indexOf(A.id),riB=g.race.indexOf(B.id);
+    const siA=g.spr.indexOf(A.id),siB=g.spr.indexOf(B.id);
+    if(qiA>=0&&qiB>=0){if(qiA<qiB)qA++;else if(qiB<qiA)qB++}
+    if(riA>=0&&riB>=0){
+     const stA=raceSt(g,A.id),stB=raceSt(g,B.id);
+     if((!stA||stA==='OK')&&(!stB||stB==='OK')){if(riA<riB)rA++;else if(riB<riA)rB++}
+    }
+    if(siA>=0&&siB>=0){
+     const ssA=g.stSpr&&g.stSpr[A.id],ssB=g.stSpr&&g.stSpr[B.id];
+     if((!ssA||ssA==='OK')&&(!ssB||ssB==='OK')){if(siA<siB)sA++;else if(siB<siA)sB++}
+    }
+    if(tm(A,g)===i)ptsA+=tot(g,A.id);
+    if(tm(B,g)===i)ptsB+=tot(g,B.id);
+   });
+   if(qA+qB+rA+rB+sA+sB===0&&ptsA+ptsB===0)return;
+   const ref=done[done.length-1]||Y[Y.length-1]||{};
+   const {a:cA,b:cB}=h2hColors(dc(A,ref),dc(B,ref));
+   const bar=(left,right,label)=>{
+    const sum=left+right;
+    if(!sum)return`<div style="margin-top:12px"><div class="mu" style="text-align:center;margin-bottom:4px">${label}</div><div class="mu" style="text-align:center;font-size:12px">нет общих сессий</div></div>`;
+    const wL=left/sum*100,wR=right/sum*100;
+    return`<div style="margin-top:12px">
+     <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:4px">
+      <span style="color:${cA};font-weight:700">${left}</span>
+      <span class="mu">${label}</span>
+      <span style="color:${cB};font-weight:700">${right}</span>
+     </div>
+     <div class="bar" style="height:14px;display:flex;overflow:hidden;border-radius:8px;background:var(--ln)">
+      <i style="width:${wL}%;background:${cA};display:block;height:100%"></i>
+      <i style="width:${wR}%;background:${cB};display:block;height:100%"></i>
+     </div>
+    </div>`;
+   };
+   cards.push(`<div class="card mate-card">
+    <div class="mu" style="margin-bottom:4px">${esc(n)} · ${S.year}</div>
+    <div class="pair">
+     <span style="color:${cA}"><b>${esc(surname(A.n))}</b> · ${ptsA} очк.</span>
+     <span class="mu">vs</span>
+     <span style="color:${cB}"><b>${esc(surname(B.n))}</b> · ${ptsB} очк.</span>
+    </div>
+    ${bar(qA,qB,'Квалификация')}
+    ${bar(sA,sB,'Спринт')}
+    ${bar(rA,rB,'Гонка')}
+    <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:12px">
+     <span style="color:${cA}">● ${esc(surname(A.n))}</span>
+     <span style="color:${cB}">● ${esc(surname(B.n))}</span>
+    </div>
+   </div>`);
+  });
+ });
+ if(!cards.length)return`<div class="em"><h2>Борьба напарников · ${S.year}</h2><p>Нет пар напарников с общими сессиями в этом сезоне.</p></div>`;
+ return`<h2 style="margin:0 0 12px;font:700 20px var(--hd)">Борьба напарников · ${S.year}</h2>${cards.join('')}`;
 }
+
 
 
 const FLAG=[
@@ -1338,7 +1397,7 @@ function dashView(){
   averages: 'Средний старт и финиш',
   matesprog: 'Прогресс относительно напарника',
   finishdist: 'Распределение финишей',
-  titlefight: 'Кто ещё борется за титул'
+  titlefight: 'Борьба за титул'
  };
  const title=titles[kind]||titles.pts;
  const showMode=kind==='pts'||kind==='rank'||kind==='form';
@@ -1350,7 +1409,6 @@ function dashView(){
   :kind==='compare'?compareChart()
   :kind==='calendar'?calendarView()
   :kind==='averages'?averagesView()
-  :kind==='matesprog'?teammateProgressView()
   :kind==='finishdist'?finishDistView()
   :kind==='titlefight'?titleFightView()
   :pointsChart(done,mode);
@@ -1362,7 +1420,7 @@ function dashView(){
    ${btn('pts','Очки')}${btn('rank','Места')}${btn('form','Форма')}${btn('pred','Прогноз')}${btn('h2h','VS')}${btn('compare','Годы')}
   </div>
   <div class="seg dash-kinds">
-   ${btn('calendar','Календарь')}${btn('averages','Средние')}${btn('finishdist','Финиши')}${btn('titlefight','Борьба')}
+   ${btn('calendar','Календарь')}${btn('averages','Средние')}${btn('finishdist','Финиши')}${btn('titlefight','Борьба за титул')}
   </div>
   ${showMode||showFormWin?`<div class="dash-sub">
    ${showMode?`<div class="seg"><button class="${mode==='d'?'on':''}" data-act="dashm" data-v="d">Пилоты</button><button class="${mode==='t'?'on':''}" data-act="dashm" data-v="t">Команды</button></div>`:''}
