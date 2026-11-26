@@ -1047,7 +1047,22 @@ function teamIndex(name){
  for(const key of keys){if(k.includes(key))return CTOR_MAP[key]}
  return S.teams.findIndex(t=>{const u=norm(t.n);return u&&(k===u||k.includes(u))});
 }
-async function jget(u){const r=await fetch(u);if(!r.ok)throw new Error(r.status);return(await r.json()).MRData.RaceTable}
+async function jget(u){
+ for(let attempt=0;attempt<5;attempt++){
+  const r=await fetch(u);
+  if(r.ok)return(await r.json()).MRData.RaceTable;
+  const code=r.status;
+  // rate limit / temporary — wait and retry
+  if(code===429||code===503||code===502){
+   const wait=1500*(attempt+1)+Math.random()*500;
+   toast('База F1 просит подождать… ('+code+')');
+   await new Promise(z=>setTimeout(z,wait));
+   continue;
+  }
+  throw new Error(String(code));
+ }
+ throw new Error('429');
+}
 async function sched(){
  try{
   toast('Загружаю расписание '+S.year+'…');
@@ -1076,14 +1091,22 @@ async function sched(){
  }}
 let MS=[];
 async function syncAll(){
- try{toast('Загружаю расписание…');const T=await jget(API+S.year+'.json');
-  T.Races.forEach(r=>{let g=S.gps.find(x=>x.r==+r.round&&gy(x)==S.year);if(!g){g={id:'g'+r.round+Date.now(),n:r.raceName,r:+r.round,y:S.year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]}};S.gps.push(g)}if(!g.n||g.n=='Новый гран-при')g.n=r.raceName;g.d=r.date;g.y=S.year;if(r.Sprint)g.sp=true});
+ try{toast('Загружаю расписание '+S.year+'…');const T=await jget(API+S.year+'.json');
+  if(!T.Races||!T.Races.length){toast('Нет расписания на '+S.year);return}
+  T.Races.forEach(r=>{let g=S.gps.find(x=>x.r==+r.round&&gy(x)==S.year);if(!g){g={id:'g'+S.year+'r'+r.round+Date.now(),n:r.raceName,r:+r.round,y:S.year,sp:!!r.Sprint,race:[],spr:[],q:[],ov:{},pred:{race:[],spr:[]},st:{}};S.gps.push(g)}if(!g.n||g.n=='Новый гран-при')g.n=r.raceName;g.d=r.date;g.y=S.year;if(r.Sprint)g.sp=true});
   S.gps=sortGps(S.gps);save();render()}
- catch(e){toast('Не удалось загрузить расписание. Проверьте сезон и подключение.');return}
- const td=new Date().toISOString().slice(0,10),todo=S.gps.filter(g=>gy(g)==S.year&&g.d&&g.d<=td&&(!fl(g)||!g.at));let n=0,ok=0,stop=false;MS=[];
- for(const g of todo){toast('Загружаю '+(++n)+' из '+todo.length+': '+g.n);const r=await loadGp(g);if(r<0){stop=true;break}if(r>0)ok++;await new Promise(z=>setTimeout(z,1200))}
+ catch(e){toast('Не удалось загрузить расписание ('+String(e&&e.message||e)+'). Повторите позже.');return}
+ const td=new Date().toISOString().slice(0,10),todo=S.gps.filter(g=>gy(g)==S.year&&g.d&&g.d<=td&&(!fl(g)||!g.at||!g.st));
+ let n=0,ok=0,fail=0;MS=[];
+ for(const g of todo){
+  toast('Загружаю '+(++n)+' из '+todo.length+': '+g.n);
+  const r=await loadGp(g);
+  if(r>0)ok++;
+  else if(r<0){fail++;toast('Пропуск: '+g.n+' — повторю с паузой');await new Promise(z=>setTimeout(z,3000))}
+  await new Promise(z=>setTimeout(z,1600));
+ }
  const ms=[...new Set(MS)];
- toast('Загружено этапов: '+ok+(stop?'. Остановлено из-за ошибки, повторите позже — загрузятся только недостающие.':'.')+(ms.length?' Добавлены новые пилоты: '+ms.join(', ')+'.':''))}
+ toast('Готово: загружено '+ok+' из '+todo.length+(fail?'. Не удалось: '+fail+' (нажмите кнопку ещё раз)':'')+(ms.length?'. Новые пилоты: '+ms.join(', '):''))}
 async function loadHist(){
  const cur=new Date().getFullYear(),from=2020;let totalOk=0,stop=false;MS=[];
  for(let y=from;y<=cur;y++){
@@ -1095,8 +1118,8 @@ async function loadHist(){
   const td=new Date().toISOString().slice(0,10);
   const todo=S.gps.filter(g=>gy(g)==y&&g.d&&g.d<=td&&(!fl(g)||!g.at));
   let n=0;
-  for(const g of todo){toast(y+': '+(++n)+'/'+todo.length+' — '+g.n);const r=await loadGp(g);if(r<0){stop=true;break}if(r>0)totalOk++;await new Promise(z=>setTimeout(z,1100))}
-  if(stop)break}
+  for(const g of todo){toast(y+': '+(++n)+'/'+todo.length+' — '+g.n);const r=await loadGp(g);if(r>0)totalOk++;else if(r<0){await new Promise(z=>setTimeout(z,2500))}await new Promise(z=>setTimeout(z,1500))}
+  }
  const ms=[...new Set(MS)];
  V.set=false;render();
  toast('История: загружено этапов '+totalOk+(stop?'. Остановлено, можно повторить.':'')+(ms.length?'. Новые пилоты: '+ms.join(', '):''))}
@@ -1209,25 +1232,35 @@ async function loadGp(g){
    if(T>=0)g.at[d.id]=T;
    return d;
   };
-  const m=a=>a.map(x=>resolve(x).id);
-  const F=async p=>(await jget(b+p+'.json')).Races[0];
-  const[a,q,s]=await Promise.all([F('results'),F('qualifying'),F('sprint').catch(()=>null)]);
-  if(!a&&!q){toast('Для этого этапа данных пока нет');return 0}
+  const m=a=>(a||[]).map(x=>resolve(x).id);
+  const F=async p=>{
+   try{
+    const T=await jget(b+p+'.json');
+    return (T&&T.Races&&T.Races[0])||null;
+   }catch(e){
+    if(String(e.message)==='404')return null;
+    throw e;
+   }
+  };
+  const needSprint=yr>=2021;
+  const[a,q,s]=await Promise.all([F('results'),F('qualifying'),needSprint?F('sprint'):Promise.resolve(null)]);
+  if(!a&&!q){return 0}
   g.at={};g.st={};g.stSpr={};
   if(!g.n||g.n=='Новый гран-при')g.n=(a||q).raceName;
   const ra=a?.Results||[];
   g.race=m(ra);
-  // statuses from race results
   ra.forEach(x=>{const d=resolve(x);g.st[d.id]=mapApiStatus(x)});
   g.q=m(q?.QualifyingResults||[]);
   const sr=s?.SprintResults||[];
   g.spr=m(sr);if(g.spr.length)g.sp=true;
   sr.forEach(x=>{const d=resolve(x);g.stSpr[d.id]=mapApiStatus(x)});
-  const dup=dedupeDrivers();
-  MS.push(...miss);save();render();
-  toast((miss.size?'Добавлены: '+[...miss].join(', ')+'. ':'Результаты загружены.')+(dup?' Слито дубликатов: '+dup+'.':''));
+  try{dedupeDrivers()}catch(e){}
+  MS.push(...miss);save();
   return 1}
- catch(e){toast('Не удалось загрузить. Проверьте номер этапа и сезон; в предпросмотре сеть заблокирована.');return -1}}
+ catch(e){
+  console.error('loadGp',g.n,e);
+  return -1;
+ }}
 
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const d=b.dataset,a=d.act,g=V.gp&&gp(),i=+d.i;
  const L=g&&(V.mode=='r'?g.race:V.mode=='s'?g.spr:V.mode=='q'?g.q:(ensurePred(g).race));if(a!='del')V.del=false;if(a!='delp')V.dd=null;
